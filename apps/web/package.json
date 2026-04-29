@@ -1,0 +1,26 @@
+{
+  "name": "@agent-progress-ui/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "lint": "eslint app components lib tests playwright.config.ts next.config.ts --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "playwright install chromium >/dev/null 2>&1 && playwright test"
+  },
+  "dependencies": {
+    "@agent-progress-ui/core": "file:../../packages/core",
+    "@agent-progress-ui/react": "file:../../packages/react",
+    "framer-motion": "^12.11.0",
+    "next": "^16.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.1",
+    "@tailwindcss/postcss": "^4.1.7",
+    "tailwindcss": "^4.1.7"
+  }
+}

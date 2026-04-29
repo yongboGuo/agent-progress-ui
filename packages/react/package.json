@@ -1,0 +1,29 @@
+{
+  "name": "@agent-progress-ui/react",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./src/index.tsx",
+  "exports": {
+    ".": {
+      "types": "./src/index.tsx",
+      "import": "./src/index.tsx",
+      "default": "./src/index.tsx"
+    }
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "dependencies": {
+    "@agent-progress-ui/core": "file:../core"
+  },
+  "scripts": {
+    "dev": "tsup src/index.tsx --format esm,cjs --dts --watch --external react react-dom --silent",
+    "build": "tsup src/index.tsx --format esm,cjs --dts --external react react-dom --silent",
+    "lint": "eslint src --max-warnings 0",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}
