@@ -1,0 +1,19 @@
+changelog:
+  categories:
+    - title: Core Runtime
+      labels:
+        - core
+    - title: React Workbench
+      labels:
+        - react
+        - ui
+    - title: MCP Adapter
+      labels:
+        - mcp
+    - title: Docs and Demo
+      labels:
+        - docs
+        - demo
+    - title: Other Changes
+      labels:
+        - "*"

@@ -1,6 +1,6 @@
 # agent-progress-ui
 
-Open-source React UI system for long-running AI tasks and agents.
+Open-source React runtime UI kit for long-running agents, MCP transcripts, approvals, and artifacts.
 
 [![CI](https://github.com/yongboGuo/agent-progress-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/yongboGuo/agent-progress-ui/actions/workflows/ci.yml)
 [![Live Demo](https://img.shields.io/badge/demo-live-C4FF4D)](https://yongboGuo.github.io/agent-progress-ui/)
@@ -8,17 +8,28 @@ Open-source React UI system for long-running AI tasks and agents.
 
 ![Cover](./assets/cover.png)
 
-`agent-progress-ui` helps product teams replace vague loading states with observable, reviewable task workbenches. It ships a fixed state machine, reducer-driven snapshots, reusable React components, and a polished Next.js demo with chat, research, and agent examples.
+`agent-progress-ui` is no longer a generic task progress demo.  
+It is now an MCP-first runtime UI kit for product teams building long-running code agents, research agents, and approval-aware workflows.
 
 Live demo: [yongboGuo.github.io/agent-progress-ui](https://yongboGuo.github.io/agent-progress-ui/)
 
-## What ships in v0.1
+## What ships in v0.2
 
-- A stable task state machine for long-running AI work
-- Reducer-driven `TaskSnapshot` generation from event streams
-- Reusable React components: `TaskWorkbench`, `StageRail`, `EvidenceFeed`, `LivenessPulse`, `TaskStateBadge`, `TaskTimer`
-- Three built-in scenario packs: chat, research, and agent
-- A demo site with `/`, `/playground`, and `/examples/*`
+- A normalized `AgentRunEvent` and `AgentRunSnapshot` model
+- A reducer and live store for incremental runtime updates
+- A composable React workbench: `AgentWorkbench`, `AgentHeader`, `AgentStageRail`, `AgentTimeline`, `AgentEvidencePanel`, `AgentArtifactDock`, `AgentApprovalBar`, `AgentInspector`
+- A thin `@agent-progress-ui/mcp` adapter package for transcript and session mapping
+- A reference app with static transcripts, live store replay, and MCP adapter demos
+
+## Why this repo changed
+
+This repo targets the gap between:
+
+- a spinner with no runtime context
+- a chat shell with hidden tool state
+- a real operator surface for runs that plan, wait, ask for approval, call tools, and emit reviewable artifacts
+
+The new design principle is simple: the run itself should be visible as a product surface.
 
 ## Quick start
 
@@ -29,29 +40,50 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+## Minimal example
+
+```ts
+import { scenarioCatalog, getAgentRunSnapshot } from "@agent-progress-ui/core";
+import { AgentWorkbench } from "@agent-progress-ui/react";
+
+const snapshot = getAgentRunSnapshot(scenarioCatalog["code-agent"].events);
+```
+
+## MCP adapter example
+
+```ts
+import { createMcpRunAdapter, createMockMcpTranscript } from "@agent-progress-ui/mcp";
+
+const adapter = createMcpRunAdapter({
+  initialEnvelopes: createMockMcpTranscript("code-agent")
+});
+
+const snapshot = adapter.getSnapshot();
+```
+
 ## Repo layout
 
 ```text
-apps/web        Next.js marketing site + interactive demo
-packages/core   task states, event schema, reducer, scenario packs
-packages/react  reusable React components for long-running task UIs
+apps/web        docs + interactive reference app
+packages/core   AgentRun model, reducer, store, mock scenarios
+packages/react  composable runtime workbench components
+packages/mcp    thin MCP transcript/session adapter
 ```
 
-## Package shape
+## Migration
 
-```ts
-import { getTaskSnapshot, scenarioCatalog } from "@agent-progress-ui/core";
-import { TaskWorkbench } from "@agent-progress-ui/react";
+`v0.2` is a breaking release.
 
-const snapshot = getTaskSnapshot(scenarioCatalog.agent.events);
-```
+- `TaskEvent` -> `AgentRunEvent`
+- `TaskSnapshot` -> `AgentRunSnapshot`
+- `TaskWorkbench` -> `AgentWorkbench`
+- legacy task event conversion is available via `legacyTaskEventsToAgentRunEvents`
+
+Detailed notes: [MIGRATION.md](./MIGRATION.md)
 
 ## Docs
 
-- [Principles](./docs/principles.md)
-- [State machine](./docs/state-machine.md)
-- [Event schema](./docs/event-schema.md)
-- [Scenarios](./docs/scenarios.md)
+- [Migration guide](./MIGRATION.md)
 - [中文 README](./README.zh-CN.md)
 
 ## Development
@@ -63,7 +95,12 @@ npm run test
 npm run build
 ```
 
-The repository ships with a CI workflow for validation and a GitHub Pages deployment workflow for the demo site.
+Versioning and release prep:
+
+```bash
+npm run changeset
+npm run version-packages
+```
 
 ## Assets
 

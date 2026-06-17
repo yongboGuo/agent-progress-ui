@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     default: "agent-progress-ui",
     template: "%s"
   },
-  description: "Open-source React UI system for long-running AI tasks and agents.",
+  description: "Open-source React runtime UI kit for long-running agents, MCP transcripts, approvals, and artifacts.",
   metadataBase: new URL(siteUrl)
 };
 

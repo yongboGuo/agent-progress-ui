@@ -1,5 +1,5 @@
 {
-  "name": "@agent-progress-ui/core",
+  "name": "@agent-progress-ui/mcp",
   "version": "0.2.0",
   "private": true,
   "type": "module",
@@ -12,6 +12,9 @@
       "import": "./src/index.ts",
       "default": "./src/index.ts"
     }
+  },
+  "dependencies": {
+    "@agent-progress-ui/core": "file:../core"
   },
   "scripts": {
     "dev": "tsup src/index.ts --format esm,cjs --dts --watch --silent",

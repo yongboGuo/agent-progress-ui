@@ -1,554 +1,576 @@
-import type { TaskPlanStep, TaskScenario } from "./model";
+import type { AgentRunEvent, AgentScenario } from "./model";
 
-const baseTime = "2026-04-29T09:00:00.000Z";
+const baseTime = "2026-06-14T09:00:00.000Z";
 
-function at(seconds: number): string {
+function at(seconds: number) {
   const date = new Date(baseTime);
   date.setUTCSeconds(date.getUTCSeconds() + seconds);
   return date.toISOString();
 }
 
-const chatPlan: TaskPlanStep[] = [
-  {
-    id: "chat-understand",
-    label: "Frame request",
-    description: "Figure out the user intent and the answer shape."
-  },
-  {
-    id: "chat-draft",
-    label: "Draft response",
-    description: "Produce the first useful response while streaming quickly."
-  },
-  {
-    id: "chat-polish",
-    label: "Polish tone",
-    description: "Tighten copy so the answer lands cleanly."
-  }
-];
-
-const researchPlan: TaskPlanStep[] = [
-  {
-    id: "research-scope",
-    label: "Confirm scope",
-    description: "Translate the request into a research plan."
-  },
-  {
-    id: "research-sources",
-    label: "Read sources",
-    description: "Collect and verify the evidence base."
-  },
-  {
-    id: "research-outline",
-    label: "Outline findings",
-    description: "Collapse source reading into a report structure."
-  },
-  {
-    id: "research-draft",
-    label: "Draft report",
-    description: "Generate a reviewable draft with citations."
-  }
-];
-
-const agentPlan: TaskPlanStep[] = [
-  {
-    id: "agent-plan",
-    label: "Plan execution",
-    description: "Lock scope, constraints, and success criteria."
-  },
-  {
-    id: "agent-inspect",
-    label: "Inspect workspace",
-    description: "Read files and infer the safe edit boundary."
-  },
-  {
-    id: "agent-implement",
-    label: "Apply changes",
-    description: "Mutate the project with checkpoints."
-  },
-  {
-    id: "agent-verify",
-    label: "Run checks",
-    description: "Execute tests and gather proof."
-  },
-  {
-    id: "agent-review",
-    label: "Package output",
-    description: "Collect diffs, screenshots, and review notes."
-  }
-];
+function event<T extends AgentRunEvent>(input: T): T {
+  return input;
+}
 
 export const scenarioCatalog = {
-  chat: {
-    id: "chat",
-    name: "Fast Chat Reply",
-    strapline: "0-15 seconds. Keep the UI warm, not theatrical.",
-    description: "A lightweight answer flow that starts streaming early and stays compact.",
-    recommendedProgress: 0.72,
+  "research-agent": {
+    id: "research-agent",
+    name: "Research Agent",
+    strapline: "Primary-source research with wait states, artifacts, and review checkpoints.",
+    description: "A long-running research run that collects sources, pauses on external fetches, and ends with a reviewable memo bundle.",
+    recommendedProgress: 0.88,
     events: [
-      {
-        id: "chat-1",
-        taskId: "task_chat_01",
-        type: "task_created",
-        state: "queued",
+      event({
+        id: "research-01",
+        runId: "run_research_01",
+        type: "run.created",
         timestamp: at(0),
-        title: "Queued for reply",
-        message: "Scheduling a low-latency response worker.",
+        title: "Research run accepted",
+        message: "A scoped research run is waiting for planning.",
         elapsedMs: 0
-      },
-      {
-        id: "chat-2",
-        taskId: "task_chat_01",
-        type: "plan_ready",
-        state: "planning",
-        timestamp: at(1),
-        title: "Plan ready",
-        message: "A short answer path is prepared.",
-        steps: chatPlan,
-        elapsedMs: 1_000
-      },
-      {
-        id: "chat-3",
-        taskId: "task_chat_01",
-        type: "step_started",
-        state: "executing",
+      }),
+      event({
+        id: "research-02",
+        runId: "run_research_01",
+        type: "plan.set",
         timestamp: at(2),
-        title: "Framing the request",
-        message: "Detecting tone, length, and needed context.",
-        stepId: "chat-understand",
-        stepLabel: "Frame request",
-        elapsedMs: 2_000
-      },
-      {
-        id: "chat-4",
-        taskId: "task_chat_01",
-        type: "step_completed",
-        state: "executing",
-        timestamp: at(4),
-        title: "Intent matched",
-        message: "The answer can stay concise and direct.",
-        stepId: "chat-understand",
-        stepLabel: "Frame request",
-        elapsedMs: 4_000
-      },
-      {
-        id: "chat-5",
-        taskId: "task_chat_01",
-        type: "step_started",
-        state: "executing",
-        timestamp: at(4),
-        title: "Drafting response",
-        message: "Streaming the first useful sentence immediately.",
-        stepId: "chat-draft",
-        stepLabel: "Draft response",
-        elapsedMs: 4_100
-      },
-      {
-        id: "chat-6",
-        taskId: "task_chat_01",
-        type: "artifact_created",
-        state: "synthesizing",
+        sequence: 1,
+        title: "Plan locked",
+        message: "Four stages are visible before the run touches tools.",
+        elapsedMs: 2_000,
+        steps: [
+          { id: "scope", label: "Lock scope", description: "Confirm audience, output, and constraints." },
+          { id: "collect", label: "Collect sources", description: "Read primary sources and attach evidence." },
+          { id: "synthesize", label: "Draft memo", description: "Collapse verified evidence into a report." },
+          { id: "review", label: "Package review", description: "Prepare artifacts for handoff." }
+        ]
+      }),
+      event({
+        id: "research-03",
+        runId: "run_research_01",
+        type: "step.started",
+        timestamp: at(3),
+        title: "Scope confirmation started",
+        message: "The run is aligning on the intended audience.",
+        elapsedMs: 3_000,
+        step: { id: "scope", label: "Lock scope", description: "Confirm audience, output, and constraints." }
+      }),
+      event({
+        id: "research-04",
+        runId: "run_research_01",
+        type: "step.completed",
         timestamp: at(7),
-        title: "Draft available",
-        message: "The first answer is coherent enough to preview.",
-        artifact: {
-          type: "answer",
-          id: "chat-artifact-draft",
-          label: "Streaming answer",
-          description: "A compact response preview."
-        },
-        elapsedMs: 7_000
-      },
-      {
-        id: "chat-7",
-        taskId: "task_chat_01",
-        type: "step_completed",
-        state: "completed",
-        timestamp: at(9),
-        title: "Reply sent",
-        message: "The final answer is ready in-thread.",
-        stepId: "chat-draft",
-        stepLabel: "Draft response",
-        elapsedMs: 9_000
-      }
-    ]
-  },
-  research: {
-    id: "research",
-    name: "Deep Research",
-    strapline: "15 seconds to 2 minutes. Show evidence, not fake percentage.",
-    description: "A multi-source research flow with explicit waiting, source evidence, and reviewable drafts.",
-    recommendedProgress: 0.82,
-    events: [
-      {
-        id: "research-1",
-        taskId: "task_research_01",
-        type: "task_created",
-        state: "queued",
-        timestamp: at(0),
-        title: "Research request accepted",
-        message: "Preparing a scoped research run.",
-        elapsedMs: 0
-      },
-      {
-        id: "research-2",
-        taskId: "task_research_01",
-        type: "plan_ready",
-        state: "planning",
-        timestamp: at(4),
-        title: "Plan ready",
-        message: "Four stages have been proposed before execution.",
-        steps: researchPlan,
-        elapsedMs: 4_000
-      },
-      {
-        id: "research-3",
-        taskId: "task_research_01",
-        type: "step_started",
-        state: "understanding",
-        timestamp: at(5),
-        title: "Confirming research scope",
-        message: "Checking target audience and output format.",
-        stepId: "research-scope",
-        stepLabel: "Confirm scope",
-        elapsedMs: 5_000
-      },
-      {
-        id: "research-4",
-        taskId: "task_research_01",
-        type: "step_completed",
-        state: "executing",
-        timestamp: at(9),
         title: "Scope locked",
-        message: "The report will optimize for product strategy readers.",
-        stepId: "research-scope",
-        stepLabel: "Confirm scope",
-        elapsedMs: 9_000
-      },
-      {
-        id: "research-5",
-        taskId: "task_research_01",
-        type: "step_started",
-        state: "executing",
+        message: "The brief is now optimized for product strategy readers.",
+        elapsedMs: 7_000,
+        stepId: "scope"
+      }),
+      event({
+        id: "research-05",
+        runId: "run_research_01",
+        type: "step.started",
+        timestamp: at(8),
+        title: "Source collection started",
+        message: "The run is beginning external fetches and tool reads.",
+        elapsedMs: 8_000,
+        step: { id: "collect", label: "Collect sources", description: "Read primary sources and attach evidence." }
+      }),
+      event({
+        id: "research-06",
+        runId: "run_research_01",
+        type: "tool.called",
         timestamp: at(10),
-        title: "Reading primary sources",
-        message: "Actively collecting the strongest external references.",
-        stepId: "research-sources",
-        stepLabel: "Read sources",
-        elapsedMs: 10_000
-      },
-      {
-        id: "research-6",
-        taskId: "task_research_01",
-        type: "source_found",
-        state: "executing",
-        timestamp: at(15),
-        title: "Source verified",
-        message: "OpenAI help documentation added to the evidence set.",
-        source: {
-          title: "OpenAI Help - Deep research",
-          domain: "help.openai.com"
-        },
-        elapsedMs: 15_000
-      },
-      {
-        id: "research-7",
-        taskId: "task_research_01",
-        type: "source_found",
-        state: "executing",
-        timestamp: at(20),
-        title: "Source verified",
-        message: "Anthropic release notes added for agent visibility patterns.",
-        source: {
-          title: "Anthropic - Claude Code autonomy",
-          domain: "anthropic.com"
-        },
-        elapsedMs: 20_000
-      },
-      {
-        id: "research-8",
-        taskId: "task_research_01",
-        type: "waiting_external",
-        state: "waiting_external",
-        timestamp: at(28),
-        title: "Waiting on external fetch",
-        message: "A rate-limited source will be retried before synthesis.",
-        stepId: "research-sources",
-        stepLabel: "Read sources",
-        elapsedMs: 28_000
-      },
-      {
-        id: "research-9",
-        taskId: "task_research_01",
-        type: "retrying",
-        state: "retrying",
-        timestamp: at(34),
-        title: "Retrying source fetch",
-        message: "Backoff completed. Resuming research collection.",
-        stepId: "research-sources",
-        stepLabel: "Read sources",
-        elapsedMs: 34_000
-      },
-      {
+        title: "Search tool called",
+        message: "The agent is querying a curated source set.",
+        elapsedMs: 10_000,
+        toolCall: { id: "tool-search", name: "web.search", summary: "Search for primary-source references published in the last 12 months." }
+      }),
+      event({
+        id: "research-07",
+        runId: "run_research_01",
+        type: "tool.output",
+        timestamp: at(13),
+        title: "Search results streamed",
+        message: "The first result batch has been normalized.",
+        elapsedMs: 13_000,
+        toolCallId: "tool-search",
+        output: { id: "search-output-1", summary: "7 high-confidence documents matched the query.", status: "completed" }
+      }),
+      event({
+        id: "research-08",
+        runId: "run_research_01",
+        type: "resource.attached",
+        timestamp: at(14),
+        title: "Primary source attached",
+        message: "A policy report was added to the evidence set.",
+        elapsedMs: 14_000,
+        resource: { id: "source-1", title: "Policy report", kind: "source", uri: "mcp://research/policy-report", detail: "Verified external source" }
+      }),
+      event({
+        id: "research-09",
+        runId: "run_research_01",
+        type: "wait.entered",
+        timestamp: at(16),
+        title: "Waiting on external retrieval",
+        message: "A rate-limited document fetch is holding the next source batch.",
+        elapsedMs: 16_000,
+        wait: { id: "wait-fetch", kind: "external", label: "Awaiting remote fetch", description: "The run is waiting for the remote document extractor to return." }
+      }),
+      event({
         id: "research-10",
-        taskId: "task_research_01",
-        type: "step_completed",
-        state: "executing",
-        timestamp: at(42),
-        title: "Evidence collection closed",
-        message: "The source set is deep enough to begin synthesis.",
-        stepId: "research-sources",
-        stepLabel: "Read sources",
-        elapsedMs: 42_000
-      },
-      {
+        runId: "run_research_01",
+        type: "wait.resolved",
+        timestamp: at(24),
+        title: "External wait resolved",
+        message: "The blocked source batch is available again.",
+        elapsedMs: 24_000,
+        waitId: "wait-fetch",
+        note: "The remote extractor returned the missing document batch."
+      }),
+      event({
         id: "research-11",
-        taskId: "task_research_01",
-        type: "step_started",
-        state: "synthesizing",
-        timestamp: at(43),
-        title: "Outlining findings",
-        message: "Turning notes into a structured report draft.",
-        stepId: "research-outline",
-        stepLabel: "Outline findings",
-        elapsedMs: 43_000
-      },
-      {
+        runId: "run_research_01",
+        type: "step.completed",
+        timestamp: at(29),
+        title: "Source collection completed",
+        message: "The evidence set is strong enough to draft.",
+        elapsedMs: 29_000,
+        stepId: "collect"
+      }),
+      event({
         id: "research-12",
-        taskId: "task_research_01",
-        type: "artifact_created",
-        state: "synthesizing",
-        timestamp: at(48),
-        title: "Outline available",
-        message: "A reviewable structure is ready before the final report.",
-        artifact: {
-          type: "outline",
-          id: "research-outline",
-          label: "Executive outline",
-          description: "Four-section report shape with citations reserved."
-        },
-        elapsedMs: 48_000
-      },
-      {
+        runId: "run_research_01",
+        type: "step.started",
+        timestamp: at(30),
+        title: "Memo drafting started",
+        message: "The run is compressing sources into an operator memo.",
+        elapsedMs: 30_000,
+        step: { id: "synthesize", label: "Draft memo", description: "Collapse verified evidence into a report." }
+      }),
+      event({
         id: "research-13",
-        taskId: "task_research_01",
-        type: "step_completed",
-        state: "ready_for_review",
-        timestamp: at(56),
-        title: "Draft ready for review",
-        message: "Users can review the draft before export.",
-        stepId: "research-outline",
-        stepLabel: "Outline findings",
-        elapsedMs: 56_000,
-        artifact: {
-          type: "report",
-          id: "research-report",
-          label: "Report draft",
-          description: "Reviewable markdown draft with sources attached."
-        }
-      }
+        runId: "run_research_01",
+        type: "artifact.created",
+        timestamp: at(40),
+        title: "Draft memo created",
+        message: "A reviewable first draft is available.",
+        elapsedMs: 40_000,
+        artifact: { id: "artifact-memo", type: "memo", label: "Strategy memo", description: "First reviewable draft of the research memo." }
+      }),
+      event({
+        id: "research-14",
+        runId: "run_research_01",
+        type: "step.completed",
+        timestamp: at(44),
+        title: "Drafting completed",
+        message: "The memo is ready for packaging.",
+        elapsedMs: 44_000,
+        stepId: "synthesize"
+      }),
+      event({
+        id: "research-15",
+        runId: "run_research_01",
+        type: "step.started",
+        timestamp: at(45),
+        title: "Review package started",
+        message: "The run is bundling citations and handoff context.",
+        elapsedMs: 45_000,
+        step: { id: "review", label: "Package review", description: "Prepare artifacts for handoff." }
+      }),
+      event({
+        id: "research-16",
+        runId: "run_research_01",
+        type: "artifact.created",
+        timestamp: at(50),
+        title: "Citation bundle created",
+        message: "Reviewers can inspect the source package.",
+        elapsedMs: 50_000,
+        artifact: { id: "artifact-citations", type: "bundle", label: "Citation bundle", description: "Linked source notes and raw extracts." }
+      }),
+      event({
+        id: "research-17",
+        runId: "run_research_01",
+        type: "run.completed",
+        timestamp: at(53),
+        title: "Research run completed",
+        message: "The memo and evidence bundle are ready to inspect.",
+        elapsedMs: 53_000,
+        summary: "Completed with a memo draft and evidence bundle."
+      })
     ]
   },
-  agent: {
-    id: "agent",
-    name: "Agent Workbench",
-    strapline: "2-10 minutes. This is no longer a loading state.",
-    description: "A long-running agent flow with tool events, checkpoints, artifacts, and a handoff into review.",
-    recommendedProgress: 0.86,
+  "code-agent": {
+    id: "code-agent",
+    name: "Code Agent",
+    strapline: "A code-focused run with MCP tool calls, background execution, and output bundling.",
+    description: "A code agent run that inspects files, edits a workspace through tools, backgrounds verification, and completes with diffs.",
+    recommendedProgress: 0.9,
     events: [
-      {
-        id: "agent-1",
-        taskId: "task_agent_01",
-        type: "task_created",
-        state: "queued",
+      event({
+        id: "code-01",
+        runId: "run_code_01",
+        type: "run.created",
         timestamp: at(0),
-        title: "Agent run queued",
-        message: "Provisioning a fresh execution environment.",
+        title: "Code run accepted",
+        message: "The run is entering planning.",
         elapsedMs: 0
-      },
-      {
-        id: "agent-2",
-        taskId: "task_agent_01",
-        type: "plan_ready",
-        state: "planning",
-        timestamp: at(12),
+      }),
+      event({
+        id: "code-02",
+        runId: "run_code_01",
+        type: "plan.set",
+        timestamp: at(1),
         title: "Execution plan ready",
-        message: "Five stages are visible before any write happens.",
-        steps: agentPlan,
-        elapsedMs: 12_000
-      },
-      {
-        id: "agent-3",
-        taskId: "task_agent_01",
-        type: "step_started",
-        state: "planning",
-        timestamp: at(14),
-        title: "Planning execution",
-        message: "Parsing the request and defining safe checkpoints.",
-        stepId: "agent-plan",
-        stepLabel: "Plan execution",
-        elapsedMs: 14_000
-      },
-      {
-        id: "agent-4",
-        taskId: "task_agent_01",
-        type: "step_completed",
-        state: "executing",
+        message: "The run will inspect, edit, verify, and package.",
+        elapsedMs: 1_000,
+        steps: [
+          { id: "inspect", label: "Inspect workspace", description: "Read the safe edit boundary and target files." },
+          { id: "implement", label: "Apply change", description: "Use tool calls to update the codebase." },
+          { id: "verify", label: "Run checks", description: "Execute tests and static validation." },
+          { id: "package", label: "Prepare handoff", description: "Bundle the diff and reviewer notes." }
+        ]
+      }),
+      event({
+        id: "code-03",
+        runId: "run_code_01",
+        type: "step.started",
+        timestamp: at(3),
+        title: "Workspace inspection started",
+        message: "The run is reading file boundaries and current implementation shape.",
+        elapsedMs: 3_000,
+        step: { id: "inspect", label: "Inspect workspace", description: "Read the safe edit boundary and target files." }
+      }),
+      event({
+        id: "code-04",
+        runId: "run_code_01",
+        type: "tool.called",
+        timestamp: at(5),
+        title: "Filesystem tool called",
+        message: "Scanning candidate files for the change surface.",
+        elapsedMs: 5_000,
+        toolCall: { id: "tool-rg", name: "workspace.search", summary: "Find affected entry points, tests, and public interfaces." }
+      }),
+      event({
+        id: "code-05",
+        runId: "run_code_01",
+        type: "tool.output",
+        timestamp: at(7),
+        title: "Workspace scan completed",
+        message: "The primary edit targets were identified.",
+        elapsedMs: 7_000,
+        toolCallId: "tool-rg",
+        output: { id: "rg-output", summary: "4 implementation files and 2 tests were selected.", status: "completed" }
+      }),
+      event({
+        id: "code-06",
+        runId: "run_code_01",
+        type: "step.completed",
+        timestamp: at(8),
+        title: "Workspace inspection completed",
+        message: "The run has a clear edit plan.",
+        elapsedMs: 8_000,
+        stepId: "inspect"
+      }),
+      event({
+        id: "code-07",
+        runId: "run_code_01",
+        type: "step.started",
+        timestamp: at(9),
+        title: "Implementation started",
+        message: "The run is now applying the planned changes.",
+        elapsedMs: 9_000,
+        step: { id: "implement", label: "Apply change", description: "Use tool calls to update the codebase." }
+      }),
+      event({
+        id: "code-08",
+        runId: "run_code_01",
+        type: "tool.called",
+        timestamp: at(12),
+        title: "Patch tool called",
+        message: "Generating and applying a focused patch.",
+        elapsedMs: 12_000,
+        toolCall: { id: "tool-patch", name: "workspace.patch", summary: "Apply the refactor required by the run plan." }
+      }),
+      event({
+        id: "code-09",
+        runId: "run_code_01",
+        type: "tool.output",
+        timestamp: at(16),
+        title: "Patch applied",
+        message: "The target files were updated successfully.",
+        elapsedMs: 16_000,
+        toolCallId: "tool-patch",
+        output: { id: "patch-output", summary: "3 files updated and 1 new file created.", status: "completed" }
+      }),
+      event({
+        id: "code-10",
+        runId: "run_code_01",
+        type: "artifact.created",
+        timestamp: at(17),
+        title: "Diff bundle created",
+        message: "The current diff is available for review.",
+        elapsedMs: 17_000,
+        artifact: { id: "artifact-diff", type: "diff", label: "Workspace diff", description: "Patch bundle generated from the implementation step." }
+      }),
+      event({
+        id: "code-11",
+        runId: "run_code_01",
+        type: "step.completed",
+        timestamp: at(18),
+        title: "Implementation completed",
+        message: "The run is ready to verify.",
+        elapsedMs: 18_000,
+        stepId: "implement"
+      }),
+      event({
+        id: "code-12",
+        runId: "run_code_01",
+        type: "step.started",
+        timestamp: at(19),
+        title: "Verification started",
+        message: "Checks are running in the background-capable path.",
+        elapsedMs: 19_000,
+        step: { id: "verify", label: "Run checks", description: "Execute tests and static validation." }
+      }),
+      event({
+        id: "code-13",
+        runId: "run_code_01",
+        type: "run.backgrounded",
         timestamp: at(22),
-        title: "Plan confirmed",
-        message: "Scope is locked and the workspace can be inspected.",
-        stepId: "agent-plan",
-        stepLabel: "Plan execution",
-        elapsedMs: 22_000
-      },
-      {
-        id: "agent-5",
-        taskId: "task_agent_01",
-        type: "step_started",
-        state: "executing",
+        title: "Verification backgrounded",
+        message: "The run can continue while the operator leaves the surface.",
+        elapsedMs: 22_000,
+        reason: "Long-running verification has been backgrounded."
+      }),
+      event({
+        id: "code-14",
+        runId: "run_code_01",
+        type: "tool.called",
         timestamp: at(24),
-        title: "Inspecting workspace",
-        message: "Reading files and inferring the change boundary.",
-        stepId: "agent-inspect",
-        stepLabel: "Inspect workspace",
-        elapsedMs: 24_000
-      },
-      {
-        id: "agent-6",
-        taskId: "task_agent_01",
-        type: "tool_started",
-        state: "executing",
+        title: "Test tool called",
+        message: "Executing the workspace validation command.",
+        elapsedMs: 24_000,
+        toolCall: { id: "tool-test", name: "workspace.test", summary: "Run the workspace test suite and collect failures." }
+      }),
+      event({
+        id: "code-15",
+        runId: "run_code_01",
+        type: "tool.output",
+        timestamp: at(30),
+        title: "Tests completed",
+        message: "The test command returned successfully.",
+        elapsedMs: 30_000,
+        toolCallId: "tool-test",
+        output: { id: "test-output", summary: "All targeted tests passed.", detail: "14 tests passed across 3 files.", status: "completed" }
+      }),
+      event({
+        id: "code-16",
+        runId: "run_code_01",
+        type: "step.completed",
+        timestamp: at(31),
+        title: "Verification completed",
+        message: "The run is safe to hand off.",
+        elapsedMs: 31_000,
+        stepId: "verify"
+      }),
+      event({
+        id: "code-17",
+        runId: "run_code_01",
+        type: "step.started",
+        timestamp: at(32),
+        title: "Packaging handoff started",
+        message: "The run is bundling notes and outputs for the reviewer.",
+        elapsedMs: 32_000,
+        step: { id: "package", label: "Prepare handoff", description: "Bundle the diff and reviewer notes." }
+      }),
+      event({
+        id: "code-18",
+        runId: "run_code_01",
+        type: "artifact.created",
+        timestamp: at(36),
+        title: "Reviewer bundle created",
+        message: "A handoff bundle is ready.",
+        elapsedMs: 36_000,
+        artifact: { id: "artifact-handoff", type: "bundle", label: "Reviewer handoff", description: "Diff summary, test proof, and reviewer notes." }
+      }),
+      event({
+        id: "code-19",
+        runId: "run_code_01",
+        type: "run.completed",
+        timestamp: at(39),
+        title: "Code run completed",
+        message: "The diff and validation bundle are ready.",
+        elapsedMs: 39_000,
+        summary: "Completed with a clean diff bundle and passing validation."
+      })
+    ]
+  },
+  "approval-handoff": {
+    id: "approval-handoff",
+    name: "Approval Handoff",
+    strapline: "A run that pauses on human approval before mutating the world.",
+    description: "An approval-focused transcript that exposes a human checkpoint before a side-effectful action is allowed to continue.",
+    recommendedProgress: 0.95,
+    events: [
+      event({
+        id: "approval-01",
+        runId: "run_approval_01",
+        type: "run.created",
+        timestamp: at(0),
+        title: "Approval run accepted",
+        message: "The run is preparing a sensitive action.",
+        elapsedMs: 0
+      }),
+      event({
+        id: "approval-02",
+        runId: "run_approval_01",
+        type: "plan.set",
+        timestamp: at(1),
+        title: "Approval plan ready",
+        message: "The run will inspect, request approval, execute, and summarize.",
+        elapsedMs: 1_000,
+        steps: [
+          { id: "inspect", label: "Inspect request", description: "Understand the requested change and blast radius." },
+          { id: "approval", label: "Request approval", description: "Pause until a reviewer approves the action." },
+          { id: "execute", label: "Execute action", description: "Perform the side effect after approval." },
+          { id: "handoff", label: "Prepare summary", description: "Package an auditable summary of the action." }
+        ]
+      }),
+      event({
+        id: "approval-03",
+        runId: "run_approval_01",
+        type: "step.started",
+        timestamp: at(2),
+        title: "Request inspection started",
+        message: "The run is verifying impact before any mutation occurs.",
+        elapsedMs: 2_000,
+        step: { id: "inspect", label: "Inspect request", description: "Understand the requested change and blast radius." }
+      }),
+      event({
+        id: "approval-04",
+        runId: "run_approval_01",
+        type: "step.completed",
+        timestamp: at(6),
+        title: "Request inspection completed",
+        message: "The run has enough context to seek approval.",
+        elapsedMs: 6_000,
+        stepId: "inspect"
+      }),
+      event({
+        id: "approval-05",
+        runId: "run_approval_01",
+        type: "step.started",
+        timestamp: at(7),
+        title: "Approval step started",
+        message: "A human approval checkpoint is entering the foreground.",
+        elapsedMs: 7_000,
+        step: { id: "approval", label: "Request approval", description: "Pause until a reviewer approves the action." }
+      }),
+      event({
+        id: "approval-06",
+        runId: "run_approval_01",
+        type: "approval.requested",
+        timestamp: at(8),
+        title: "Approval requested",
+        message: "The run needs explicit approval before continuing.",
+        elapsedMs: 8_000,
+        approval: { id: "approval-prod", label: "Production write", description: "Approve a write against the production dataset." }
+      }),
+      event({
+        id: "approval-07",
+        runId: "run_approval_01",
+        type: "approval.resolved",
+        timestamp: at(18),
+        title: "Approval granted",
+        message: "A reviewer approved the requested action.",
+        elapsedMs: 18_000,
+        approvalId: "approval-prod",
+        resolution: "approved",
+        note: "Approved by operator with the requested guardrails intact."
+      }),
+      event({
+        id: "approval-08",
+        runId: "run_approval_01",
+        type: "step.completed",
+        timestamp: at(19),
+        title: "Approval step completed",
+        message: "The run can now execute the approved action.",
+        elapsedMs: 19_000,
+        stepId: "approval"
+      }),
+      event({
+        id: "approval-09",
+        runId: "run_approval_01",
+        type: "step.started",
+        timestamp: at(20),
+        title: "Execution started",
+        message: "The run is now applying the approved action.",
+        elapsedMs: 20_000,
+        step: { id: "execute", label: "Execute action", description: "Perform the side effect after approval." }
+      }),
+      event({
+        id: "approval-10",
+        runId: "run_approval_01",
+        type: "tool.called",
+        timestamp: at(22),
+        title: "Action tool called",
+        message: "The approved write is being executed.",
+        elapsedMs: 22_000,
+        toolCall: { id: "tool-write", name: "mcp.writeDataset", summary: "Execute the approved dataset mutation." }
+      }),
+      event({
+        id: "approval-11",
+        runId: "run_approval_01",
+        type: "tool.output",
+        timestamp: at(25),
+        title: "Action tool completed",
+        message: "The side effect completed successfully.",
+        elapsedMs: 25_000,
+        toolCallId: "tool-write",
+        output: { id: "write-output", summary: "Dataset mutation completed with 2 rows updated.", status: "completed" }
+      }),
+      event({
+        id: "approval-12",
+        runId: "run_approval_01",
+        type: "step.completed",
+        timestamp: at(26),
+        title: "Execution completed",
+        message: "The run is transitioning into summary mode.",
+        elapsedMs: 26_000,
+        stepId: "execute"
+      }),
+      event({
+        id: "approval-13",
+        runId: "run_approval_01",
+        type: "step.started",
+        timestamp: at(27),
+        title: "Summary packaging started",
+        message: "The run is building an auditable summary.",
+        elapsedMs: 27_000,
+        step: { id: "handoff", label: "Prepare summary", description: "Package an auditable summary of the action." }
+      }),
+      event({
+        id: "approval-14",
+        runId: "run_approval_01",
+        type: "artifact.created",
+        timestamp: at(31),
+        title: "Audit summary created",
+        message: "The reviewer summary is ready.",
+        elapsedMs: 31_000,
+        artifact: { id: "artifact-audit", type: "summary", label: "Audit summary", description: "Approval note, action details, and result summary." }
+      }),
+      event({
+        id: "approval-15",
+        runId: "run_approval_01",
+        type: "run.completed",
         timestamp: at(34),
-        title: "Tool started",
-        message: "Search is scanning the repository for entry points.",
-        tool: {
-          name: "repo.search",
-          detail: "Searching for likely integration surfaces."
-        },
-        elapsedMs: 34_000
-      },
-      {
-        id: "agent-7",
-        taskId: "task_agent_01",
-        type: "tool_finished",
-        state: "executing",
-        timestamp: at(40),
-        title: "Workspace mapped",
-        message: "The main routes and reusable primitives are identified.",
-        tool: {
-          name: "repo.search",
-          detail: "Relevant files scored and ranked."
-        },
-        elapsedMs: 40_000
-      },
-      {
-        id: "agent-8",
-        taskId: "task_agent_01",
-        type: "step_completed",
-        state: "executing",
-        timestamp: at(48),
-        title: "Inspection complete",
-        message: "Safe edit boundaries are now visible.",
-        stepId: "agent-inspect",
-        stepLabel: "Inspect workspace",
-        elapsedMs: 48_000
-      },
-      {
-        id: "agent-9",
-        taskId: "task_agent_01",
-        type: "step_started",
-        state: "executing",
-        timestamp: at(49),
-        title: "Applying changes",
-        message: "The agent is editing and staging artifacts for review.",
-        stepId: "agent-implement",
-        stepLabel: "Apply changes",
-        elapsedMs: 49_000
-      },
-      {
-        id: "agent-10",
-        taskId: "task_agent_01",
-        type: "artifact_created",
-        state: "executing",
-        timestamp: at(64),
-        title: "Artifact created",
-        message: "A patch preview is available before verification.",
-        artifact: {
-          type: "diff",
-          id: "agent-diff",
-          label: "Patch preview",
-          description: "A reviewable diff summary with ownership notes."
-        },
-        elapsedMs: 64_000
-      },
-      {
-        id: "agent-11",
-        taskId: "task_agent_01",
-        type: "backgrounded",
-        state: "backgrounded",
-        timestamp: at(70),
-        title: "Task moved to background",
-        message: "The user can leave without losing progress.",
-        elapsedMs: 70_000
-      },
-      {
-        id: "agent-12",
-        taskId: "task_agent_01",
-        type: "step_completed",
-        state: "synthesizing",
-        timestamp: at(92),
-        title: "Implementation checkpoint saved",
-        message: "The code changes are stable enough for verification.",
-        stepId: "agent-implement",
-        stepLabel: "Apply changes",
-        elapsedMs: 92_000
-      },
-      {
-        id: "agent-13",
-        taskId: "task_agent_01",
-        type: "step_started",
-        state: "synthesizing",
-        timestamp: at(94),
-        title: "Running checks",
-        message: "Build and smoke checks are underway.",
-        stepId: "agent-verify",
-        stepLabel: "Run checks",
-        elapsedMs: 94_000
-      },
-      {
-        id: "agent-14",
-        taskId: "task_agent_01",
-        type: "tool_finished",
-        state: "synthesizing",
-        timestamp: at(114),
-        title: "Checks passed",
-        message: "The verification suite finished without blocking failures.",
-        tool: {
-          name: "npm.run",
-          detail: "lint, typecheck, tests, and build completed."
-        },
-        elapsedMs: 114_000
-      },
-      {
-        id: "agent-15",
-        taskId: "task_agent_01",
-        type: "step_completed",
-        state: "ready_for_review",
-        timestamp: at(122),
-        title: "Ready for review",
-        message: "Diffs, artifacts, and next steps are bundled for inspection.",
-        stepId: "agent-verify",
-        stepLabel: "Run checks",
-        elapsedMs: 122_000,
-        artifact: {
-          type: "bundle",
-          id: "agent-review",
-          label: "Review bundle",
-          description: "Diff, screenshots, logs, and verification output."
-        }
-      }
+        title: "Approval run completed",
+        message: "The approved action and audit summary are ready.",
+        elapsedMs: 34_000,
+        summary: "Completed after explicit approval with an audit-ready summary."
+      })
     ]
   }
-} satisfies Record<string, TaskScenario>;
+} as const satisfies Record<string, AgentScenario>;
 
 export type ScenarioKey = keyof typeof scenarioCatalog;
-export const scenarioList = Object.values(scenarioCatalog);

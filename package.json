@@ -1,6 +1,6 @@
 {
   "name": "agent-progress-ui",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Open-source React UI system for long-running AI tasks and agents.",
   "license": "MIT",
@@ -12,13 +12,17 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n core,react,web -c cyan,magenta,green \"npm run dev --workspace @agent-progress-ui/core\" \"npm run dev --workspace @agent-progress-ui/react\" \"npm run dev --workspace @agent-progress-ui/web\"",
-    "build": "npm run build --workspace @agent-progress-ui/core && npm run build --workspace @agent-progress-ui/react && npm run build --workspace @agent-progress-ui/web",
-    "lint": "npm run lint --workspace @agent-progress-ui/core && npm run lint --workspace @agent-progress-ui/react && npm run lint --workspace @agent-progress-ui/web",
-    "typecheck": "npm run typecheck --workspace @agent-progress-ui/core && npm run typecheck --workspace @agent-progress-ui/react && npm run typecheck --workspace @agent-progress-ui/web",
-    "test": "npm run test --workspace @agent-progress-ui/core && npm run test --workspace @agent-progress-ui/web"
+    "dev": "concurrently -n core,react,mcp,web -c cyan,magenta,blue,green \"npm run dev --workspace @agent-progress-ui/core\" \"npm run dev --workspace @agent-progress-ui/react\" \"npm run dev --workspace @agent-progress-ui/mcp\" \"npm run dev --workspace @agent-progress-ui/web\"",
+    "build": "npm run build --workspace @agent-progress-ui/core && npm run build --workspace @agent-progress-ui/react && npm run build --workspace @agent-progress-ui/mcp && npm run build --workspace @agent-progress-ui/web",
+    "lint": "npm run lint --workspace @agent-progress-ui/core && npm run lint --workspace @agent-progress-ui/react && npm run lint --workspace @agent-progress-ui/mcp && npm run lint --workspace @agent-progress-ui/web",
+    "typecheck": "npm run typecheck --workspace @agent-progress-ui/core && npm run typecheck --workspace @agent-progress-ui/react && npm run typecheck --workspace @agent-progress-ui/mcp && npm run typecheck --workspace @agent-progress-ui/web",
+    "test": "npm run test --workspace @agent-progress-ui/core && npm run test --workspace @agent-progress-ui/mcp && npm run test --workspace @agent-progress-ui/web",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.29.6",
     "@eslint/js": "^9.25.1",
     "@types/node": "^22.15.21",
     "@types/react": "^19.1.4",

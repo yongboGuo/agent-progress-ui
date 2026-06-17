@@ -22,9 +22,9 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(215, 255, 105, 0.12), transparent 22%),
-    radial-gradient(circle at 80% 12%, rgba(97, 134, 255, 0.15), transparent 30%),
-    linear-gradient(180deg, #0b0e14 0%, #0f141c 42%, #131b27 100%);
+    radial-gradient(circle at top left, rgba(215, 255, 105, 0.1), transparent 22%),
+    radial-gradient(circle at 82% 12%, rgba(97, 134, 255, 0.14), transparent 30%),
+    linear-gradient(180deg, #05070c 0%, #091019 35%, #101827 100%);
   color: var(--text);
   font-family: var(--font-display), sans-serif;
 }
@@ -81,4 +81,82 @@ code {
   border: 1px solid rgba(255, 255, 255, 0.1);
   background: rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(18px);
+}
+
+.hero-shell {
+  position: relative;
+  min-height: calc(100svh - 73px);
+  padding: 1.5rem 1.5rem 2.5rem;
+}
+
+.hero-inner {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  min-height: calc(100svh - 121px);
+  align-items: end;
+  gap: 2rem;
+  margin-inline: auto;
+  width: 100%;
+  max-width: 92rem;
+}
+
+.hero-backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 12% 16%, rgba(215, 255, 105, 0.18), transparent 22%),
+    radial-gradient(circle at 88% 12%, rgba(91, 132, 255, 0.16), transparent 24%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 24%),
+    linear-gradient(180deg, #06080d 0%, #0a111b 42%, #111927 100%);
+}
+
+.hero-grid-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 120px 120px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.75), transparent 85%);
+  opacity: 0.32;
+}
+
+.hero-stage {
+  position: relative;
+}
+
+@supports (view-transition-name: none) {
+  ::view-transition-old(hero-workbench),
+  ::view-transition-new(hero-workbench),
+  ::view-transition-old(playground-workbench),
+  ::view-transition-new(playground-workbench) {
+    animation-duration: 320ms;
+    animation-timing-function: ease;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-shell {
+    padding-inline: 2rem;
+    padding-top: 1.75rem;
+    padding-bottom: 3rem;
+  }
+
+  .hero-inner {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  }
+}
+
+@media (max-width: 767px) {
+  .hero-shell {
+    min-height: auto;
+    padding-inline: 1rem;
+    padding-top: 1rem;
+    padding-bottom: 2rem;
+  }
+
+  .hero-inner {
+    min-height: auto;
+  }
 }

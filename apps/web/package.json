@@ -1,6 +1,6 @@
 {
   "name": "@agent-progress-ui/web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@agent-progress-ui/core": "file:../../packages/core",
+    "@agent-progress-ui/mcp": "file:../../packages/mcp",
     "@agent-progress-ui/react": "file:../../packages/react",
     "framer-motion": "^12.11.0",
     "next": "^16.0.0",

@@ -1,17 +1,18 @@
 "use client";
 
 import { scenarioCatalog, type ScenarioKey } from "@agent-progress-ui/core";
-import { TaskWorkbench, createTaskThemeStyle } from "@agent-progress-ui/react";
-import { motion } from "framer-motion";
+import { AgentWorkbench, createAgentThemeStyle } from "@agent-progress-ui/react";
+import { AnimatePresence, motion } from "framer-motion";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { getScenarioSnapshot } from "../lib/scenarios";
+import { runWithViewTransition } from "../lib/view-transition";
 
-const featuredScenarios: ScenarioKey[] = ["chat", "research", "agent"];
+const featuredScenarios: ScenarioKey[] = ["research-agent", "code-agent", "approval-handoff"];
 
 export function HeroShowcase() {
-  const [scenarioKey, setScenarioKey] = useState<ScenarioKey>("agent");
+  const [scenarioKey, setScenarioKey] = useState<ScenarioKey>("code-agent");
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -19,40 +20,50 @@ export function HeroShowcase() {
         const index = featuredScenarios.indexOf(current);
         return featuredScenarios[(index + 1) % featuredScenarios.length];
       });
-    }, 4_800);
+    }, 5_200);
 
     return () => window.clearInterval(interval);
   }, []);
 
   const scenario = scenarioCatalog[scenarioKey];
   const snapshot = getScenarioSnapshot(scenarioKey, scenario.recommendedProgress);
+  const latestSignals = snapshot.timeline.slice(-4).reverse();
+  const pendingApproval = snapshot.approvals.find((approval) => approval.status === "pending");
 
   return (
-    <section className="relative overflow-hidden px-6 pb-18 pt-14 md:px-10 md:pb-28 md:pt-18">
-      <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_top_left,rgba(215,255,105,0.18),transparent_28%),radial-gradient(circle_at_80%_20%,rgba(83,140,255,0.18),transparent_34%),linear-gradient(180deg,#0b0e14_0%,#0f131a_48%,#121923_100%)]" />
-      <div className="absolute inset-x-0 top-0 -z-10 h-[520px] bg-[linear-gradient(180deg,rgba(255,255,255,0.06),transparent)] opacity-40" />
+    <section className="hero-shell relative overflow-hidden">
+      <div className="hero-backdrop" />
+      <div className="hero-grid-lines" />
 
-      <div className="mx-auto grid max-w-7xl items-end gap-14 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
-          className="max-w-2xl"
-        >
-          <p className="text-sm uppercase tracking-[0.34em] text-[var(--accent)]">Mission Control for Long-Running AI</p>
-          <h1 className="mt-5 text-5xl font-semibold tracking-[-0.05em] text-white md:text-7xl">
-            Replace vague loading with a real task workbench.
-          </h1>
-          <p className="mt-6 max-w-xl text-base leading-8 text-white/72 md:text-lg">
-            `agent-progress-ui` is an open-source React UI system for deep research, code agents, and long-running
-            AI tasks. Show liveness, stages, and proof instead of trapping users behind a spinner.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-4">
+      <div className="hero-inner">
+        <div className="max-w-2xl">
+          <motion.div
+            initial={{ opacity: 0, y: 22 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.75, ease: "easeOut" }}
+          >
+            <p className="text-sm uppercase tracking-[0.34em] text-[var(--accent)]">agent-progress-ui</p>
+            <p className="mt-5 max-w-md text-xs uppercase tracking-[0.32em] text-white/42">MCP-first runtime visibility kit</p>
+            <h1 className="mt-4 max-w-4xl text-[clamp(3.2rem,10vw,7.4rem)] leading-[0.92] font-semibold tracking-[-0.08em] text-white">
+              Build agent workbenches, not generic loading shells.
+            </h1>
+            <p className="mt-6 max-w-xl text-base leading-8 text-white/72 md:text-lg">
+              A React runtime UI kit for long-running agents. Surface plan, wait states, approvals, tools, evidence,
+              and artifacts in a single inspectable workbench.
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 14 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.12, ease: "easeOut" }}
+            className="mt-8 flex flex-wrap gap-4"
+          >
             <Link
               href="/playground"
               className="inline-flex items-center rounded-full bg-[var(--accent)] px-6 py-3 text-sm font-semibold text-[#101410] transition hover:translate-y-[-1px]"
             >
-              Run playground
+              Open reference app
             </Link>
             <a
               href="https://github.com/yongboGuo/agent-progress-ui"
@@ -60,57 +71,127 @@ export function HeroShowcase() {
             >
               View repository
             </a>
-          </div>
-          <div className="mt-10 grid gap-5 text-sm text-white/62 md:grid-cols-3">
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 18 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.18, ease: "easeOut" }}
+            className="mt-12 grid gap-8 border-t border-white/10 pt-8 md:grid-cols-3"
+          >
             <div>
-              <p className="font-semibold text-white">Liveness</p>
-              <p className="mt-2 leading-6">Always prove the task is still alive.</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-white/40">Current run</p>
+              <p className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">{scenario.name}</p>
+              <p className="mt-2 text-sm leading-7 text-white/58">{scenario.strapline}</p>
             </div>
             <div>
-              <p className="font-semibold text-white">Stages</p>
-              <p className="mt-2 leading-6">Stable checkpoints instead of fake progress bars.</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-white/40">Current phase</p>
+              <p className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">{snapshot.header.currentPhase}</p>
+              <p className="mt-2 text-sm leading-7 text-white/58">{snapshot.header.summary}</p>
             </div>
             <div>
-              <p className="font-semibold text-white">Evidence</p>
-              <p className="mt-2 leading-6">Sources, tools, drafts, and reviewable artifacts.</p>
+              <p className="text-xs uppercase tracking-[0.24em] text-white/40">Control path</p>
+              <p className="mt-3 text-xl font-semibold tracking-[-0.04em] text-white">
+                {pendingApproval ? pendingApproval.label : `${snapshot.artifacts.length} artifacts ready`}
+              </p>
+              <p className="mt-2 text-sm leading-7 text-white/58">
+                {pendingApproval
+                  ? "Approvals block the run in the main surface instead of hiding inside a feed."
+                  : "Artifacts remain visible as first-class output, not as afterthoughts."}
+              </p>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
 
         <motion.div
-          key={scenarioKey}
-          initial={{ opacity: 0, y: 28, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ duration: 0.55, ease: "easeOut" }}
-          className="relative"
-          data-testid="hero-preview"
+          initial={{ opacity: 0, x: 26 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.85, delay: 0.08, ease: "easeOut" }}
+          className="hero-stage"
         >
-          <div className="mb-4 flex flex-wrap gap-3">
-            {featuredScenarios.map((item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setScenarioKey(item)}
-                className={`rounded-full border px-4 py-2 text-sm transition ${
-                  item === scenarioKey
-                    ? "border-[var(--accent)] bg-[rgba(215,255,105,0.1)] text-[var(--accent)]"
-                    : "border-white/10 bg-white/4 text-white/60 hover:text-white"
-                }`}
-              >
-                {scenarioCatalog[item].name}
-              </button>
-            ))}
-          </div>
-          <div className="rounded-[34px] border border-white/10 bg-[rgba(255,255,255,0.03)] p-4 shadow-[0_30px_100px_rgba(0,0,0,0.35)] backdrop-blur">
-            <div className="mb-4 flex items-center justify-between gap-4 rounded-[22px] border border-white/10 bg-black/18 px-5 py-4">
-              <div>
-                <p className="text-xs uppercase tracking-[0.26em] text-white/45">Live Scenario</p>
-                <strong className="mt-2 block text-xl text-white">{scenario.name}</strong>
-                <p className="mt-2 text-sm text-white/62">{scenario.strapline}</p>
+          <div className="rounded-[32px] border border-white/10 bg-[rgba(9,12,18,0.82)] p-4 shadow-[0_32px_110px_rgba(0,0,0,0.42)] backdrop-blur-2xl">
+            <div className="grid gap-4 border-b border-white/10 pb-4 md:grid-cols-[minmax(0,0.78fr)_minmax(0,1.22fr)]">
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.03] p-5">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.24em] text-[var(--accent)]">Runtime profiles</p>
+                    <strong className="mt-3 block text-2xl tracking-[-0.05em] text-white">{scenario.name}</strong>
+                  </div>
+                  <span className="rounded-full bg-[rgba(215,255,105,0.1)] px-3 py-1 text-xs uppercase tracking-[0.22em] text-[var(--accent)]">
+                    {snapshot.header.status}
+                  </span>
+                </div>
+                <p className="mt-3 text-sm leading-7 text-white/60">{scenario.description}</p>
+
+                <div className="mt-5 space-y-2">
+                  {featuredScenarios.map((item) => {
+                    const isActive = item === scenarioKey;
+
+                    return (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => runWithViewTransition(() => setScenarioKey(item))}
+                        className={`relative flex w-full items-center justify-between overflow-hidden rounded-[18px] border px-4 py-3 text-left transition ${
+                          isActive
+                            ? "border-[var(--accent)]/35 bg-[rgba(215,255,105,0.09)] text-white"
+                            : "border-white/10 bg-white/[0.02] text-white/62 hover:text-white"
+                        }`}
+                      >
+                        <span className="relative z-10">
+                          <span className="block text-sm font-semibold">{scenarioCatalog[item].name}</span>
+                          <span className="mt-1 block text-xs uppercase tracking-[0.2em] text-white/42">
+                            {scenarioCatalog[item].events.length} runtime events
+                          </span>
+                        </span>
+                        {isActive ? (
+                          <motion.span
+                            layoutId="scenario-pill"
+                            className="absolute inset-0 rounded-[18px] border border-[var(--accent)]/30"
+                            transition={{ type: "spring", stiffness: 320, damping: 30 }}
+                          />
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="hidden h-16 w-16 rounded-full border border-[var(--accent)]/30 bg-[radial-gradient(circle,rgba(215,255,105,0.22),transparent_70%)] md:block" />
+
+              <div className="rounded-[24px] border border-white/10 bg-white/[0.02] p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <p className="text-xs uppercase tracking-[0.24em] text-white/40">Timeline tape</p>
+                  <p className="text-xs uppercase tracking-[0.24em] text-white/35">{snapshot.timeline.length} events</p>
+                </div>
+
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={scenarioKey}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    transition={{ duration: 0.28, ease: "easeOut" }}
+                    className="mt-4 space-y-4"
+                  >
+                    {latestSignals.map((item, index) => (
+                      <div key={item.id} className="border-b border-white/8 pb-3 last:border-b-0 last:pb-0">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-[11px] uppercase tracking-[0.22em] text-white/32">Signal {String(index + 1).padStart(2, "0")}</p>
+                            <strong className="mt-2 block text-base text-white">{item.title}</strong>
+                          </div>
+                          <span className="text-[11px] uppercase tracking-[0.22em] text-white/32">{item.kind}</span>
+                        </div>
+                        {item.detail ? <p className="mt-2 text-sm leading-7 text-white/58">{item.detail}</p> : null}
+                      </div>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
+              </div>
             </div>
-            <TaskWorkbench snapshot={snapshot} style={createTaskThemeStyle()} />
+
+            <div className="mt-4" style={{ viewTransitionName: "hero-workbench" }} data-testid="hero-preview">
+              <AgentWorkbench snapshot={snapshot} style={createAgentThemeStyle()} />
+            </div>
           </div>
         </motion.div>
       </div>

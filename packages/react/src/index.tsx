@@ -1,22 +1,28 @@
-import type { TaskArtifact, TaskFeedItem, TaskSnapshot, TaskState, TaskTone, TaskStep } from "@agent-progress-ui/core";
-import { stateMeta } from "@agent-progress-ui/core";
-import type { CSSProperties } from "react";
+"use client";
 
-export { createTaskThemeStyle, defaultThemeVars } from "./theme";
+import type {
+  AgentApproval,
+  AgentArtifact,
+  AgentTone,
+  AgentRunSnapshot,
+  AgentRunStageRail,
+  AgentRunStore,
+  AgentRunEvidence,
+  AgentTimelineItem,
+  AgentRunStatus
+} from "@agent-progress-ui/core";
+import { agentStatusMeta } from "@agent-progress-ui/core";
+import type { CSSProperties, ReactNode } from "react";
+import { useDeferredValue, useSyncExternalStore } from "react";
 
-const toneColor: Record<TaskTone, string> = {
-  neutral: "var(--task-ui-text-muted)",
-  accent: "var(--task-ui-accent)",
-  success: "var(--task-ui-success)",
-  warning: "var(--task-ui-warning)",
-  danger: "var(--task-ui-danger)"
-};
+export { createAgentThemeStyle, defaultAgentThemeVars } from "./theme";
 
-const statusColor: Record<TaskStep["status"], string> = {
-  pending: "var(--task-ui-text-muted)",
-  active: "var(--task-ui-accent)",
-  completed: "var(--task-ui-success)",
-  failed: "var(--task-ui-danger)"
+const toneColor: Record<AgentTone, string> = {
+  neutral: "var(--agent-ui-text-muted)",
+  accent: "var(--agent-ui-accent)",
+  success: "var(--agent-ui-success)",
+  warning: "var(--agent-ui-warning)",
+  danger: "var(--agent-ui-danger)"
 };
 
 const shellStyle: CSSProperties = {
@@ -27,14 +33,14 @@ const shellStyle: CSSProperties = {
   background:
     "linear-gradient(160deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)) padding-box, linear-gradient(160deg, rgba(255,255,255,0.18), rgba(255,255,255,0.02)) border-box",
   border: "1px solid transparent",
-  color: "var(--task-ui-text)",
+  color: "var(--agent-ui-text)",
   boxShadow: "0 28px 80px rgba(4, 10, 22, 0.4)",
   backdropFilter: "blur(18px)"
 };
 
 const panelStyle: CSSProperties = {
   borderRadius: "22px",
-  border: "1px solid var(--task-ui-border)",
+  border: "1px solid var(--agent-ui-border)",
   background: "rgba(15, 18, 24, 0.56)",
   padding: "1rem"
 };
@@ -52,32 +58,25 @@ function formatElapsedMs(elapsedMs: number): string {
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
-function panelHeadingStyle(): CSSProperties {
-  return {
-    margin: 0,
-    fontSize: "0.85rem",
-    letterSpacing: "0.14em",
-    textTransform: "uppercase",
-    color: "var(--task-ui-text-muted)"
-  };
+function heading(text: string): ReactNode {
+  return (
+    <p
+      style={{
+        margin: 0,
+        fontSize: "0.85rem",
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
+        color: "var(--agent-ui-text-muted)"
+      }}
+    >
+      {text}
+    </p>
+  );
 }
 
-function stepConnector(status: TaskStep["status"], isLast: boolean): CSSProperties {
-  return {
-    position: "absolute",
-    top: "1.1rem",
-    left: "0.5rem",
-    width: "1px",
-    height: isLast ? 0 : "calc(100% + 0.8rem)",
-    background:
-      status === "completed"
-        ? "linear-gradient(to bottom, rgba(140, 240, 200, 0.8), rgba(140, 240, 200, 0.2))"
-        : "rgba(255, 255, 255, 0.12)"
-  };
-}
-
-export function TaskStateBadge({ state }: { state: TaskState }) {
-  const meta = stateMeta[state];
+function StateBadge({ status }: { status: AgentRunStatus }) {
+  const meta = agentStatusMeta[status];
+  const color = toneColor[meta.tone];
 
   return (
     <span
@@ -89,9 +88,9 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
         borderRadius: "999px",
         fontSize: "0.8rem",
         fontWeight: 600,
-        color: toneColor[meta.tone],
-        background: meta.tone === "accent" ? "var(--task-ui-accent-soft)" : "rgba(255,255,255,0.06)",
-        border: `1px solid ${toneColor[meta.tone]}30`
+        color,
+        background: meta.tone === "accent" ? "var(--agent-ui-accent-soft)" : "rgba(255,255,255,0.06)",
+        border: `1px solid ${color}30`
       }}
     >
       <span
@@ -99,8 +98,8 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
           width: "0.5rem",
           height: "0.5rem",
           borderRadius: "999px",
-          background: toneColor[meta.tone],
-          boxShadow: `0 0 18px ${toneColor[meta.tone]}`
+          background: color,
+          boxShadow: `0 0 18px ${color}`
         }}
       />
       {meta.label}
@@ -108,33 +107,8 @@ export function TaskStateBadge({ state }: { state: TaskState }) {
   );
 }
 
-export function TaskTimer({ elapsedMs }: { elapsedMs: number }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "0.45rem",
-        color: "var(--task-ui-text-muted)",
-        fontSize: "0.85rem"
-      }}
-    >
-      <span
-        aria-hidden="true"
-        style={{
-          width: "0.42rem",
-          height: "0.42rem",
-          borderRadius: "999px",
-          background: "var(--task-ui-accent)"
-        }}
-      />
-      {formatElapsedMs(elapsedMs)}
-    </span>
-  );
-}
-
-export function LivenessPulse({ state }: { state: TaskState }) {
-  const tone = toneColor[stateMeta[state].tone];
+function LivenessPulse({ status }: { status: AgentRunStatus }) {
+  const tone = toneColor[agentStatusMeta[status].tone];
 
   return (
     <svg aria-hidden="true" viewBox="0 0 40 40" width="40" height="40">
@@ -151,13 +125,155 @@ export function LivenessPulse({ state }: { state: TaskState }) {
   );
 }
 
-export function StageRail({ steps, activeStepId }: { steps: TaskStep[]; activeStepId?: string }) {
+function ActionChip({ label, active }: { label: string; active: boolean }) {
   return (
-    <div style={{ ...panelStyle, minHeight: "100%" }}>
-      <p style={panelHeadingStyle()}>Stage Rail</p>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "0.45rem 0.78rem",
+        borderRadius: "999px",
+        border: `1px solid ${active ? "rgba(215, 255, 105, 0.3)" : "rgba(255,255,255,0.08)"}`,
+        background: active ? "rgba(215, 255, 105, 0.08)" : "rgba(255,255,255,0.02)",
+        color: active ? "var(--agent-ui-accent)" : "var(--agent-ui-text-muted)",
+        fontSize: "0.8rem"
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+export function AgentHeader({
+  header,
+  approvals
+}: {
+  header: AgentRunSnapshot["header"];
+  approvals: AgentApproval[];
+}) {
+  return (
+    <section
+      style={{
+        ...panelStyle,
+        display: "grid",
+        gap: "1rem"
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "space-between",
+          gap: "1rem",
+          alignItems: "center"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "0.9rem" }}>
+          <LivenessPulse status={header.status} />
+          <div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
+              <StateBadge status={header.status} />
+              <span style={{ color: "var(--agent-ui-text-muted)", fontSize: "0.85rem" }}>
+                {formatElapsedMs(header.elapsedMs)}
+              </span>
+            </div>
+            <strong style={{ display: "block", marginTop: "0.55rem", fontSize: "1.15rem" }}>{header.title}</strong>
+            {header.summary ? (
+              <p style={{ margin: "0.35rem 0 0", color: "var(--agent-ui-text-muted)", maxWidth: "42rem", lineHeight: 1.6 }}>
+                {header.summary}
+              </p>
+            ) : null}
+          </div>
+        </div>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.55rem" }}>
+          <ActionChip label={header.currentPhase} active />
+          <ActionChip label={header.isBackgrounded ? "Backgrounded" : "Foreground"} active={header.isBackgrounded} />
+          <ActionChip label={approvals.some((approval) => approval.status === "pending") ? "Approval open" : "No approval"} active={approvals.some((approval) => approval.status === "pending")} />
+        </div>
+      </div>
+      {header.wait ? (
+        <div
+          style={{
+            borderRadius: "18px",
+            border: "1px solid rgba(255, 203, 115, 0.28)",
+            background: "rgba(255, 203, 115, 0.08)",
+            padding: "0.9rem 1rem"
+          }}
+        >
+          <strong style={{ display: "block", fontSize: "0.95rem", color: "var(--agent-ui-warning)" }}>{header.wait.label}</strong>
+          <p style={{ margin: "0.35rem 0 0", color: "var(--agent-ui-text)", lineHeight: 1.6 }}>{header.wait.description}</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+export function AgentApprovalBar({ approvals }: { approvals: AgentApproval[] }) {
+  return (
+    <section style={panelStyle}>
+      {heading("Approval Bar")}
       <div style={{ display: "grid", gap: "0.85rem", marginTop: "1rem" }}>
-        {steps.map((step, index) => {
-          const isActive = step.id === activeStepId || step.status === "active";
+        {approvals.length === 0 ? (
+          <p style={{ margin: 0, color: "var(--agent-ui-text-muted)", lineHeight: 1.6 }}>
+            No explicit approvals are currently open on this run.
+          </p>
+        ) : (
+          approvals.map((approval) => (
+            <div
+              key={approval.id}
+              style={{
+                borderRadius: "18px",
+                border: `1px solid ${
+                  approval.status === "approved"
+                    ? "rgba(140, 240, 200, 0.24)"
+                    : approval.status === "rejected"
+                      ? "rgba(255, 131, 131, 0.24)"
+                      : "rgba(255, 203, 115, 0.28)"
+                }`,
+                background:
+                  approval.status === "approved"
+                    ? "rgba(140, 240, 200, 0.08)"
+                    : approval.status === "rejected"
+                      ? "rgba(255, 131, 131, 0.08)"
+                      : "rgba(255, 203, 115, 0.08)",
+                padding: "0.95rem"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "0.8rem", alignItems: "baseline" }}>
+                <strong style={{ fontSize: "0.95rem" }}>{approval.label}</strong>
+                <span style={{ fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--agent-ui-text-muted)" }}>
+                  {approval.status}
+                </span>
+              </div>
+              <p style={{ margin: "0.45rem 0 0", color: "var(--agent-ui-text-muted)", lineHeight: 1.55 }}>{approval.description}</p>
+              {approval.resolutionNote ? (
+                <p style={{ margin: "0.55rem 0 0", color: "var(--agent-ui-text)", fontSize: "0.84rem", lineHeight: 1.55 }}>
+                  {approval.resolutionNote}
+                </p>
+              ) : null}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function AgentStageRail({ stageRail }: { stageRail: AgentRunStageRail }) {
+  return (
+    <section style={{ ...panelStyle, minHeight: "100%" }}>
+      {heading("Stage Rail")}
+      <div style={{ display: "grid", gap: "0.85rem", marginTop: "1rem" }}>
+        {stageRail.steps.map((step, index) => {
+          const isActive = step.id === stageRail.activeStepId || step.status === "active";
+          const color =
+            step.status === "completed"
+              ? "var(--agent-ui-success)"
+              : step.status === "failed"
+                ? "var(--agent-ui-danger)"
+                : step.status === "active"
+                  ? "var(--agent-ui-accent)"
+                  : "var(--agent-ui-text-muted)";
 
           return (
             <div
@@ -176,184 +292,223 @@ export function StageRail({ steps, activeStepId }: { steps: TaskStep[]; activeSt
                     width: "1rem",
                     height: "1rem",
                     borderRadius: "999px",
-                    background: statusColor[step.status],
-                    boxShadow: isActive ? `0 0 24px ${statusColor[step.status]}` : "none"
+                    background: color,
+                    boxShadow: isActive ? `0 0 24px ${color}` : "none"
                   }}
                 />
-                <span style={stepConnector(step.status, index === steps.length - 1)} />
+                {index < stageRail.steps.length - 1 ? (
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: "1.1rem",
+                      left: "0.5rem",
+                      width: "1px",
+                      height: "calc(100% + 0.8rem)",
+                      background: step.status === "completed" ? "linear-gradient(to bottom, rgba(140, 240, 200, 0.8), rgba(140, 240, 200, 0.2))" : "rgba(255,255,255,0.12)"
+                    }}
+                  />
+                ) : null}
               </div>
               <div
                 style={{
                   borderRadius: "18px",
-                  border: `1px solid ${isActive ? "rgba(215, 255, 105, 0.28)" : "var(--task-ui-border)"}`,
+                  border: `1px solid ${isActive ? "rgba(215, 255, 105, 0.28)" : "var(--agent-ui-border)"}`,
                   background: isActive ? "rgba(215, 255, 105, 0.08)" : "rgba(255,255,255,0.02)",
                   padding: "0.85rem 0.95rem"
                 }}
               >
                 <div style={{ display: "flex", justifyContent: "space-between", gap: "0.8rem", alignItems: "baseline" }}>
                   <strong style={{ fontSize: "0.95rem" }}>{step.label}</strong>
-                  <span style={{ color: statusColor[step.status], fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                    {step.status}
-                  </span>
+                  <span style={{ color, fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.12em" }}>{step.status}</span>
                 </div>
-                <p style={{ margin: "0.45rem 0 0", color: "var(--task-ui-text-muted)", fontSize: "0.88rem", lineHeight: 1.55 }}>
-                  {step.description}
+                <p style={{ margin: "0.45rem 0 0", color: "var(--agent-ui-text-muted)", fontSize: "0.88rem", lineHeight: 1.55 }}>
+                  {step.detail ?? step.description}
                 </p>
               </div>
             </div>
           );
         })}
       </div>
-    </div>
+    </section>
   );
 }
 
-function EvidenceItem({ item }: { item: TaskFeedItem }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gap: "0.2rem",
-        paddingBottom: "0.85rem",
-        borderBottom: "1px solid rgba(255,255,255,0.06)"
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "baseline" }}>
-        <strong style={{ fontSize: "0.92rem" }}>{item.title}</strong>
-        <span style={{ color: "var(--task-ui-text-muted)", fontSize: "0.75rem" }}>
-          {item.elapsedMs ? formatElapsedMs(item.elapsedMs) : item.timestamp.slice(11, 16)}
-        </span>
-      </div>
-      {item.message ? (
-        <p style={{ margin: 0, color: "var(--task-ui-text-muted)", fontSize: "0.84rem", lineHeight: 1.55 }}>{item.message}</p>
-      ) : null}
-    </div>
-  );
-}
-
-export function EvidenceFeed({ feed, maxItems = 6 }: { feed: TaskFeedItem[]; maxItems?: number }) {
-  const items = feed.slice(-maxItems).reverse();
+export function AgentTimeline({ timeline }: { timeline: AgentTimelineItem[] }) {
+  const items = useDeferredValue(timeline);
 
   return (
-    <div style={panelStyle}>
-      <p style={panelHeadingStyle()}>Evidence Feed</p>
-      <div style={{ display: "grid", gap: "0.85rem", marginTop: "1rem" }}>
-        {items.map((item) => (
-          <EvidenceItem key={item.id} item={item} />
+    <section style={panelStyle}>
+      {heading("Timeline")}
+      <div style={{ display: "grid", gap: "0.9rem", marginTop: "1rem" }}>
+        {items.slice().reverse().map((item) => (
+          <div key={item.id} style={{ borderBottom: "1px solid rgba(255,255,255,0.06)", paddingBottom: "0.85rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "baseline" }}>
+              <strong style={{ fontSize: "0.92rem" }}>{item.title}</strong>
+              <span style={{ color: "var(--agent-ui-text-muted)", fontSize: "0.75rem" }}>{item.timestamp.slice(11, 19)}</span>
+            </div>
+            <p style={{ margin: "0.3rem 0 0", color: "var(--agent-ui-text-muted)", fontSize: "0.84rem", lineHeight: 1.55 }}>
+              {item.detail ?? item.eventType}
+            </p>
+          </div>
         ))}
       </div>
-    </div>
+    </section>
   );
 }
 
-function ArtifactPill({ artifact }: { artifact: TaskArtifact }) {
+export function AgentEvidencePanel({ evidence }: { evidence: AgentRunEvidence }) {
+  const entries = useDeferredValue(evidence.entries);
+
   return (
-    <div
-      style={{
-        borderRadius: "18px",
-        border: "1px solid rgba(255,255,255,0.08)",
-        background: "rgba(255,255,255,0.04)",
-        padding: "0.9rem"
-      }}
-    >
-      <p style={{ margin: 0, color: "var(--task-ui-accent)", fontSize: "0.78rem", letterSpacing: "0.12em", textTransform: "uppercase" }}>
-        {artifact.type}
-      </p>
-      <strong style={{ display: "block", marginTop: "0.35rem", fontSize: "0.98rem" }}>{artifact.label}</strong>
-      {artifact.description ? (
-        <p style={{ margin: "0.4rem 0 0", color: "var(--task-ui-text-muted)", fontSize: "0.84rem", lineHeight: 1.55 }}>
-          {artifact.description}
-        </p>
-      ) : null}
-    </div>
+    <section style={panelStyle}>
+      {heading("Evidence")}
+      <div style={{ display: "grid", gap: "0.85rem", marginTop: "1rem" }}>
+        {entries.length === 0 ? (
+          <p style={{ margin: 0, color: "var(--agent-ui-text-muted)", lineHeight: 1.6 }}>
+            No evidence has been attached to this run yet.
+          </p>
+        ) : (
+          entries.map((entry) => (
+            <div
+              key={entry.id}
+              style={{
+                borderRadius: "18px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.03)",
+                padding: "0.85rem"
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: "1rem", alignItems: "baseline" }}>
+                <strong style={{ fontSize: "0.92rem" }}>{entry.title}</strong>
+                <span style={{ color: "var(--agent-ui-text-muted)", fontSize: "0.75rem" }}>{entry.timestamp.slice(11, 19)}</span>
+              </div>
+              {entry.detail ? (
+                <p style={{ margin: "0.35rem 0 0", color: "var(--agent-ui-text-muted)", fontSize: "0.84rem", lineHeight: 1.55 }}>
+                  {entry.detail}
+                </p>
+              ) : null}
+              <div style={{ display: "flex", gap: "0.55rem", flexWrap: "wrap", marginTop: "0.55rem" }}>
+                <ActionChip label={entry.kind} active={entry.kind === "tool" || entry.kind === "output"} />
+                {entry.status ? <ActionChip label={entry.status} active={entry.status === "pending" || entry.status === "running"} /> : null}
+                {entry.meta ? <ActionChip label={entry.meta} active={false} /> : null}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
-function ActionChip({ label, active }: { label: string; active: boolean }) {
+export function AgentArtifactDock({ artifacts }: { artifacts: AgentArtifact[] }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "0.45rem 0.78rem",
-        borderRadius: "999px",
-        border: `1px solid ${active ? "rgba(215, 255, 105, 0.3)" : "rgba(255,255,255,0.08)"}`,
-        background: active ? "rgba(215, 255, 105, 0.08)" : "rgba(255,255,255,0.02)",
-        color: active ? "var(--task-ui-accent)" : "var(--task-ui-text-muted)",
-        fontSize: "0.8rem"
-      }}
-    >
-      {label}
-    </span>
+    <section style={panelStyle}>
+      {heading("Artifact Dock")}
+      <div style={{ display: "grid", gap: "0.85rem", marginTop: "1rem" }}>
+        {artifacts.length === 0 ? (
+          <p style={{ margin: 0, color: "var(--agent-ui-text-muted)", lineHeight: 1.6 }}>
+            No artifacts have been created yet.
+          </p>
+        ) : (
+          artifacts.map((artifact) => (
+            <div
+              key={artifact.id}
+              style={{
+                borderRadius: "18px",
+                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.04)",
+                padding: "0.9rem"
+              }}
+            >
+              <p style={{ margin: 0, color: "var(--agent-ui-accent)", fontSize: "0.78rem", letterSpacing: "0.12em", textTransform: "uppercase" }}>
+                {artifact.type}
+              </p>
+              <strong style={{ display: "block", marginTop: "0.35rem", fontSize: "0.98rem" }}>{artifact.label}</strong>
+              {artifact.description ? (
+                <p style={{ margin: "0.4rem 0 0", color: "var(--agent-ui-text-muted)", fontSize: "0.84rem", lineHeight: 1.55 }}>
+                  {artifact.description}
+                </p>
+              ) : null}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   );
 }
 
-export interface TaskWorkbenchProps {
-  snapshot: TaskSnapshot;
-  headline?: string;
-  subhead?: string;
-  style?: CSSProperties;
-}
-
-export function TaskWorkbench({ snapshot, headline, subhead, style }: TaskWorkbenchProps) {
+export function AgentInspector({ snapshot }: { snapshot: AgentRunSnapshot }) {
   return (
-    <section style={{ ...shellStyle, ...style }}>
-      <div
+    <section style={panelStyle}>
+      {heading("Inspector")}
+      <pre
         style={{
-          ...panelStyle,
-          display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "space-between",
-          gap: "1rem",
-          alignItems: "center"
+          margin: "1rem 0 0",
+          overflowX: "auto",
+          borderRadius: "18px",
+          border: "1px solid rgba(255,255,255,0.08)",
+          background: "rgba(9,12,18,0.72)",
+          padding: "1rem",
+          fontSize: "0.76rem",
+          lineHeight: 1.65
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "0.9rem" }}>
-          <LivenessPulse state={snapshot.state} />
-          <div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
-              <TaskStateBadge state={snapshot.state} />
-              <TaskTimer elapsedMs={snapshot.elapsedMs} />
-            </div>
-            <strong style={{ display: "block", marginTop: "0.55rem", fontSize: "1.15rem" }}>{headline ?? snapshot.title}</strong>
-            {subhead ?? snapshot.message ? (
-              <p style={{ margin: "0.35rem 0 0", color: "var(--task-ui-text-muted)", maxWidth: "42rem", lineHeight: 1.6 }}>
-                {subhead ?? snapshot.message}
-              </p>
-            ) : null}
-          </div>
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.55rem" }}>
-          <ActionChip label="Cancel" active={snapshot.canCancel} />
-          <ActionChip label="Background" active={snapshot.canBackground} />
-          <ActionChip label="Review" active={snapshot.canReview} />
-        </div>
-      </div>
+        {JSON.stringify(snapshot, null, 2)}
+      </pre>
+    </section>
+  );
+}
 
+export function useAgentRun(store: AgentRunStore): AgentRunSnapshot {
+  return useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
+}
+
+type SnapshotProps = {
+  snapshot: AgentRunSnapshot;
+  store?: never;
+  style?: CSSProperties;
+};
+
+type StoreProps = {
+  store: AgentRunStore;
+  snapshot?: never;
+  style?: CSSProperties;
+};
+
+export type AgentWorkbenchProps = SnapshotProps | StoreProps;
+
+export function AgentWorkbench(props: AgentWorkbenchProps) {
+  const liveSnapshot = props.store !== undefined ? useAgentRun(props.store) : props.snapshot;
+  const snapshot = useDeferredValue(liveSnapshot);
+  const shouldEmphasizeArtifacts = snapshot.header.status === "completed" || snapshot.header.status === "failed";
+
+  return (
+    <section style={{ ...shellStyle, ...props.style }}>
+      <AgentHeader header={snapshot.header} approvals={snapshot.approvals} />
+      {snapshot.approvals.some((approval) => approval.status === "pending") ? (
+        <AgentApprovalBar approvals={snapshot.approvals} />
+      ) : null}
       <div
         style={{
           display: "grid",
           gap: "1rem",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))"
+          gridTemplateColumns: "minmax(0,0.8fr) minmax(0,1.2fr)"
         }}
       >
-        <StageRail steps={snapshot.steps} activeStepId={snapshot.activeStepId} />
-        <div style={{ display: "grid", gap: "1rem" }}>
-          <div style={panelStyle}>
-            <p style={panelHeadingStyle()}>Artifacts</p>
-            <div style={{ display: "grid", gap: "0.8rem", marginTop: "1rem" }}>
-              {snapshot.artifacts.length ? (
-                snapshot.artifacts.map((artifact) => <ArtifactPill key={artifact.id} artifact={artifact} />)
-              ) : (
-                <p style={{ margin: 0, color: "var(--task-ui-text-muted)", fontSize: "0.88rem" }}>
-                  No reviewable artifact yet. The system is still gathering proof.
-                </p>
-              )}
-            </div>
-          </div>
-          <EvidenceFeed feed={snapshot.feed} />
-        </div>
+        <AgentStageRail stageRail={snapshot.stageRail} />
+        <AgentTimeline timeline={snapshot.timeline} />
       </div>
+      <div
+        style={{
+          display: "grid",
+          gap: "1rem",
+          gridTemplateColumns: shouldEmphasizeArtifacts ? "minmax(0,1fr) minmax(0,1fr)" : "minmax(0,1.2fr) minmax(0,0.8fr)"
+        }}
+      >
+        <AgentEvidencePanel evidence={snapshot.evidence} />
+        <AgentArtifactDock artifacts={snapshot.artifacts} />
+      </div>
+      <AgentInspector snapshot={snapshot} />
     </section>
   );
 }

@@ -1,267 +1,527 @@
 import type {
-  TaskEvent,
-  TaskFeedItem,
-  TaskSnapshot,
-  TaskState,
-  TaskStateMeta,
-  TaskStep,
-  TaskStepStatus
+  AgentApproval,
+  AgentArtifact,
+  AgentEvidenceEntry,
+  AgentPlanStep,
+  AgentResource,
+  AgentRunEvent,
+  AgentRunHeader,
+  AgentRunSnapshot,
+  AgentRunStageRail,
+  AgentRunStatus,
+  AgentStatusMeta,
+  AgentStageStep,
+  AgentTimelineItem,
+  AgentToolCall,
+  AgentWaitState
 } from "./model";
 
-const cancelableStates = new Set<TaskState>([
-  "queued",
-  "understanding",
-  "planning",
-  "executing",
-  "synthesizing",
-  "waiting_external",
-  "waiting_user",
-  "retrying"
-]);
-
-const backgroundableStates = new Set<TaskState>([
-  "understanding",
-  "planning",
-  "executing",
-  "synthesizing",
-  "waiting_external",
-  "retrying"
-]);
-
-const reviewableStates = new Set<TaskState>(["ready_for_review", "completed", "failed"]);
-
-export const stateMeta: Record<TaskState, TaskStateMeta> = {
+export const agentStatusMeta: Record<AgentRunStatus, AgentStatusMeta> = {
   queued: {
     label: "Queued",
     tone: "neutral",
-    detail: "Waiting for a worker slot."
-  },
-  understanding: {
-    label: "Understanding",
-    tone: "accent",
-    detail: "The agent is parsing scope and constraints."
+    detail: "The run has been accepted and is waiting to start."
   },
   planning: {
     label: "Planning",
     tone: "accent",
-    detail: "Plan formation should be visible before deep work starts."
+    detail: "The run is locking scope, stages, and the execution route."
   },
-  executing: {
-    label: "Executing",
+  running: {
+    label: "Running",
     tone: "accent",
-    detail: "Live tools, sources, and task nodes are actively moving."
+    detail: "The agent is actively executing steps, tools, or resource reads."
   },
-  synthesizing: {
-    label: "Synthesizing",
-    tone: "accent",
-    detail: "The system is converging into a reviewable draft."
-  },
-  waiting_external: {
-    label: "Waiting External",
+  waiting: {
+    label: "Waiting",
     tone: "warning",
-    detail: "A dependency outside the app is blocking forward motion."
+    detail: "Forward progress is paused on a user or external dependency."
   },
-  waiting_user: {
-    label: "Waiting User",
+  approval: {
+    label: "Approval",
     tone: "warning",
-    detail: "User input is required before continuing."
-  },
-  retrying: {
-    label: "Retrying",
-    tone: "warning",
-    detail: "The system is recovering from a failed tool or request."
+    detail: "The run is blocked on an explicit approval checkpoint."
   },
   backgrounded: {
     label: "Backgrounded",
     tone: "neutral",
-    detail: "Work continues outside the current surface."
-  },
-  ready_for_review: {
-    label: "Ready for Review",
-    tone: "success",
-    detail: "There is enough output to inspect before final completion."
+    detail: "The run continues outside the current foreground surface."
   },
   completed: {
     label: "Completed",
     tone: "success",
-    detail: "The task has fully finished."
+    detail: "The run has finished with a reviewable output."
   },
   failed: {
     label: "Failed",
     tone: "danger",
-    detail: "Execution stopped and needs intervention."
-  },
-  cancelled: {
-    label: "Cancelled",
-    tone: "neutral",
-    detail: "The task was intentionally stopped."
+    detail: "The run stopped and needs intervention."
   }
 };
 
-function sortEvents(events: TaskEvent[]): TaskEvent[] {
+function sortEvents(events: AgentRunEvent[]): AgentRunEvent[] {
   return [...events].sort((left, right) => {
-    if (left.timestamp === right.timestamp) {
-      return left.id.localeCompare(right.id);
+    if (left.timestamp !== right.timestamp) {
+      return left.timestamp.localeCompare(right.timestamp);
     }
 
-    return left.timestamp.localeCompare(right.timestamp);
+    const leftSequence = left.sequence ?? 0;
+    const rightSequence = right.sequence ?? 0;
+
+    if (leftSequence !== rightSequence) {
+      return leftSequence - rightSequence;
+    }
+
+    return left.id.localeCompare(right.id);
   });
 }
 
-function defaultStep(stepId: string, label: string, order: number): TaskStep {
+function getEventStatus(
+  event: AgentRunEvent,
+  approvals: AgentApproval[],
+  isBackgrounded: boolean,
+  waitState?: AgentWaitState
+): AgentRunStatus {
+  if (event.type === "run.failed") {
+    return "failed";
+  }
+
+  if (event.type === "run.completed") {
+    return "completed";
+  }
+
+  if (event.type === "run.backgrounded") {
+    return "backgrounded";
+  }
+
+  if (waitState && !waitState.resolvedAt) {
+    return "waiting";
+  }
+
+  const pendingApproval = approvals.some((approval) => approval.status === "pending");
+
+  if (pendingApproval) {
+    return "approval";
+  }
+
+  if (isBackgrounded) {
+    return "backgrounded";
+  }
+
+  if (event.type === "run.created") {
+    return "queued";
+  }
+
+  if (event.type === "plan.set") {
+    return "planning";
+  }
+
+  return "running";
+}
+
+function defaultStep(step: AgentPlanStep, order: number): AgentStageStep {
   return {
-    id: stepId,
-    label,
-    description: "Implicitly discovered from task events.",
+    ...step,
     order,
     status: "pending"
   };
 }
 
-function materializeStep(step: TaskStep, status: TaskStepStatus, timestamp: string): TaskStep {
-  if (status === "active") {
-    return { ...step, status, startedAt: step.startedAt ?? timestamp };
-  }
+function upsertStep(
+  steps: Map<string, AgentStageStep>,
+  step: AgentPlanStep,
+  order: number
+): AgentStageStep {
+  const current = steps.get(step.id);
+  const next: AgentStageStep = {
+    ...step,
+    order,
+    status: current?.status ?? "pending",
+    startedAt: current?.startedAt,
+    completedAt: current?.completedAt,
+    detail: current?.detail
+  };
 
-  if (status === "completed") {
-    return {
-      ...step,
-      status,
-      startedAt: step.startedAt ?? timestamp,
-      completedAt: timestamp
-    };
-  }
-
-  if (status === "failed") {
-    return {
-      ...step,
-      status,
-      startedAt: step.startedAt ?? timestamp
-    };
-  }
-
-  return { ...step, status };
+  steps.set(step.id, next);
+  return next;
 }
 
-export function reduceTaskEvents(events: TaskEvent[]): TaskSnapshot {
+function pushEvidence(entries: AgentEvidenceEntry[], entry: AgentEvidenceEntry) {
+  entries.push(entry);
+}
+
+function emptySnapshot(): AgentRunSnapshot {
+  const header: AgentRunHeader = {
+    runId: "run_empty",
+    title: "No run loaded",
+    status: "queued",
+    tone: agentStatusMeta.queued.tone,
+    elapsedMs: 0,
+    currentPhase: "Awaiting input",
+    isBackgrounded: false,
+    lastEventAt: new Date(0).toISOString()
+  };
+
+  const stageRail: AgentRunStageRail = {
+    steps: []
+  };
+
+  return {
+    runId: header.runId,
+    header,
+    stageRail,
+    timeline: [],
+    evidence: {
+      entries: [],
+      tools: [],
+      resources: []
+    },
+    artifacts: [],
+    approvals: []
+  };
+}
+
+export function reduceAgentRunEvents(events: AgentRunEvent[]): AgentRunSnapshot {
   const orderedEvents = sortEvents(events);
   const firstEvent = orderedEvents[0];
 
   if (!firstEvent) {
-    return {
-      taskId: "task_empty",
-      state: "queued",
-      title: "No task data",
-      elapsedMs: 0,
-      steps: [],
-      feed: [],
-      artifacts: [],
-      canCancel: false,
-      canBackground: false,
-      canReview: false
-    };
+    return emptySnapshot();
   }
 
-  const steps = new Map<string, TaskStep>();
-  const artifacts = new Map<string, NonNullable<TaskEvent["artifact"]>>();
-  const feed: TaskFeedItem[] = [];
+  const steps = new Map<string, AgentStageStep>();
+  const toolCalls = new Map<string, AgentToolCall>();
+  const resources = new Map<string, AgentResource>();
+  const artifacts = new Map<string, AgentArtifact>();
+  const approvals = new Map<string, AgentApproval>();
+  const evidenceEntries: AgentEvidenceEntry[] = [];
+  const timeline: AgentTimelineItem[] = [];
   let activeStepId: string | undefined;
-  let title = firstEvent.title;
-  let message = firstEvent.message;
-  let state = firstEvent.state;
+  let status: AgentRunStatus = "queued";
   let elapsedMs = firstEvent.elapsedMs ?? 0;
+  let title = firstEvent.title;
+  let summary = firstEvent.message;
+  let currentPhase = "Run accepted";
+  let waitState: AgentWaitState | undefined;
+  let isBackgrounded = false;
 
-  orderedEvents.forEach((event) => {
-    state = event.state;
-    title = event.title;
-    message = event.message ?? message;
+  // The stage rail reducer is easier to read as a second pass over the ordered events.
+  for (const event of orderedEvents) {
     elapsedMs = event.elapsedMs ?? elapsedMs;
+    title = event.title;
+    summary = event.message ?? summary;
 
-    if (event.steps?.length) {
+    if (event.type === "plan.set") {
+      currentPhase = "Plan locked";
       event.steps.forEach((step, index) => {
-        steps.set(step.id, {
-          ...step,
-          order: index,
-          status: steps.get(step.id)?.status ?? "pending",
-          startedAt: steps.get(step.id)?.startedAt,
-          completedAt: steps.get(step.id)?.completedAt
-        });
+        upsertStep(steps, step, index);
       });
     }
 
-    if (event.stepId && event.stepLabel && !steps.has(event.stepId)) {
-      steps.set(event.stepId, defaultStep(event.stepId, event.stepLabel, steps.size));
+    if (event.type === "step.started") {
+      const current = steps.get(event.step.id) ?? defaultStep(event.step, steps.size);
+      steps.set(event.step.id, {
+        ...current,
+        ...event.step,
+        order: current.order,
+        status: "active",
+        startedAt: current.startedAt ?? event.timestamp
+      });
+      activeStepId = event.step.id;
+      currentPhase = event.step.label;
     }
 
-    if (event.type === "step_started" && event.stepId) {
+    if (event.type === "step.updated") {
       const current = steps.get(event.stepId);
 
       if (current) {
-        steps.set(event.stepId, materializeStep(current, "active", event.timestamp));
+        steps.set(event.stepId, {
+          ...current,
+          detail: event.detail
+        });
       }
-
-      activeStepId = event.stepId;
     }
 
-    if (event.type === "step_completed" && event.stepId) {
+    if (event.type === "step.completed") {
       const current = steps.get(event.stepId);
 
       if (current) {
-        steps.set(event.stepId, materializeStep(current, "completed", event.timestamp));
+        const failed = event.outcome === "failed";
+        steps.set(event.stepId, {
+          ...current,
+          status: failed ? "failed" : "completed",
+          completedAt: event.timestamp
+        });
       }
 
       if (activeStepId === event.stepId) {
         activeStepId = undefined;
       }
+
+      currentPhase = current?.label ?? currentPhase;
     }
 
-    if (event.type === "failed" && event.stepId) {
-      const current = steps.get(event.stepId);
+    if (event.type === "tool.called") {
+      toolCalls.set(event.toolCall.id, {
+        id: event.toolCall.id,
+        name: event.toolCall.name,
+        summary: event.toolCall.summary,
+        startedAt: event.timestamp,
+        status: "running",
+        outputs: []
+      });
+      pushEvidence(evidenceEntries, {
+        id: event.id,
+        kind: "tool",
+        title: event.toolCall.name,
+        detail: event.toolCall.summary,
+        timestamp: event.timestamp,
+        status: "running"
+      });
+    }
+
+    if (event.type === "tool.output") {
+      const current =
+        toolCalls.get(event.toolCallId) ??
+        {
+          id: event.toolCallId,
+          name: "Unknown tool",
+          summary: "Tool output arrived before the tool call event.",
+          startedAt: event.timestamp,
+          status: "running" as const,
+          outputs: []
+        };
+
+      const output = {
+        id: event.output.id,
+        summary: event.output.summary,
+        detail: event.output.detail,
+        timestamp: event.timestamp,
+        status: event.output.status
+      };
+
+      toolCalls.set(event.toolCallId, {
+        ...current,
+        status: event.output.status === "failed" ? "failed" : event.output.status === "completed" ? "completed" : "running",
+        completedAt: event.output.status === "streaming" ? current.completedAt : event.timestamp,
+        outputs: [...current.outputs, output]
+      });
+
+      pushEvidence(evidenceEntries, {
+        id: output.id,
+        kind: "output",
+        title: current.name,
+        detail: output.summary,
+        timestamp: event.timestamp,
+        meta: output.detail,
+        status: output.status
+      });
+    }
+
+    if (event.type === "resource.attached") {
+      resources.set(event.resource.id, {
+        ...event.resource,
+        timestamp: event.timestamp
+      });
+
+      pushEvidence(evidenceEntries, {
+        id: event.resource.id,
+        kind: "resource",
+        title: event.resource.title,
+        detail: event.resource.detail,
+        timestamp: event.timestamp,
+        meta: event.resource.kind,
+        status: "attached"
+      });
+    }
+
+    if (event.type === "artifact.created") {
+      artifacts.set(event.artifact.id, {
+        ...event.artifact,
+        timestamp: event.timestamp
+      });
+
+      pushEvidence(evidenceEntries, {
+        id: event.artifact.id,
+        kind: "artifact",
+        title: event.artifact.label,
+        detail: event.artifact.description,
+        timestamp: event.timestamp,
+        meta: event.artifact.type,
+        status: "created"
+      });
+    }
+
+    if (event.type === "approval.requested") {
+      currentPhase = "Approval requested";
+      approvals.set(event.approval.id, {
+        ...event.approval,
+        status: "pending",
+        requestedAt: event.timestamp
+      });
+
+      pushEvidence(evidenceEntries, {
+        id: event.approval.id,
+        kind: "approval",
+        title: event.approval.label,
+        detail: event.approval.description,
+        timestamp: event.timestamp,
+        status: "pending"
+      });
+    }
+
+    if (event.type === "approval.resolved") {
+      currentPhase = "Approval resolved";
+      const current = approvals.get(event.approvalId);
 
       if (current) {
-        steps.set(event.stepId, materializeStep(current, "failed", event.timestamp));
+        approvals.set(event.approvalId, {
+          ...current,
+          status: event.resolution,
+          resolvedAt: event.timestamp,
+          resolutionNote: event.note
+        });
       }
+
+      pushEvidence(evidenceEntries, {
+        id: event.id,
+        kind: "approval",
+        title: current?.label ?? "Approval resolved",
+        detail: event.note,
+        timestamp: event.timestamp,
+        status: event.resolution
+      });
     }
 
-    if (event.artifact) {
-      artifacts.set(event.artifact.id, event.artifact);
+    if (event.type === "wait.entered") {
+      currentPhase = event.wait.label;
+      waitState = {
+        ...event.wait,
+        enteredAt: event.timestamp
+      };
+
+      pushEvidence(evidenceEntries, {
+        id: event.wait.id,
+        kind: "wait",
+        title: event.wait.label,
+        detail: event.wait.description,
+        timestamp: event.timestamp,
+        status: "entered"
+      });
     }
 
-    feed.push({
+    if (event.type === "wait.resolved" && waitState?.id === event.waitId) {
+      currentPhase = "Run resumed";
+      waitState = {
+        ...waitState,
+        resolvedAt: event.timestamp,
+        resolutionNote: event.note
+      };
+
+      pushEvidence(evidenceEntries, {
+        id: event.id,
+        kind: "wait",
+        title: waitState.label,
+        detail: event.note,
+        timestamp: event.timestamp,
+        status: "resolved"
+      });
+    }
+
+    if (event.type === "run.backgrounded") {
+      isBackgrounded = true;
+      currentPhase = "Background execution";
+    }
+
+    if (event.type === "run.completed") {
+      currentPhase = "Completed";
+      isBackgrounded = false;
+    }
+
+    if (event.type === "run.failed") {
+      currentPhase = "Failed";
+      isBackgrounded = false;
+    }
+
+    status = getEventStatus(
+      event,
+      [...approvals.values()],
+      isBackgrounded,
+      waitState && !waitState.resolvedAt ? waitState : undefined
+    );
+    const detail =
+      event.type === "run.completed"
+        ? event.summary
+        : event.type === "run.failed"
+          ? event.error
+          : event.message;
+
+    timeline.push({
       id: event.id,
-      type: event.type,
-      state: event.state,
+      kind: event.type.startsWith("step")
+        ? "step"
+        : event.type.startsWith("tool")
+          ? "tool"
+          : event.type.startsWith("resource")
+            ? "resource"
+            : event.type.startsWith("artifact")
+              ? "artifact"
+              : event.type.startsWith("approval")
+                ? "approval"
+                : event.type.startsWith("wait")
+                  ? "wait"
+                  : event.type === "plan.set"
+                    ? "plan"
+                    : "run",
+      eventType: event.type,
       title: event.title,
-      message: event.message,
+      detail,
       timestamp: event.timestamp,
-      elapsedMs: event.elapsedMs
+      sequence: event.sequence ?? 0,
+      status
     });
-  });
+  }
 
-  if (activeStepId && reviewableStates.has(state)) {
+  if (activeStepId && (status === "completed" || status === "failed")) {
     const current = steps.get(activeStepId);
 
     if (current && current.status === "active") {
-      steps.set(activeStepId, materializeStep(current, "completed", orderedEvents.at(-1)?.timestamp ?? firstEvent.timestamp));
+      steps.set(activeStepId, {
+        ...current,
+        status: status === "failed" ? "failed" : "completed",
+        completedAt: orderedEvents.at(-1)?.timestamp ?? current.startedAt
+      });
     }
   }
 
-  return {
-    taskId: firstEvent.taskId,
-    state,
+  const header: AgentRunHeader = {
+    runId: firstEvent.runId,
     title,
-    message,
+    summary,
+    status,
+    tone: agentStatusMeta[status].tone,
     elapsedMs,
-    steps: [...steps.values()].sort((left, right) => left.order - right.order),
+    currentPhase,
     activeStepId,
-    feed,
-    artifacts: [...artifacts.values()],
-    canCancel: cancelableStates.has(state),
-    canBackground: backgroundableStates.has(state),
-    canReview: reviewableStates.has(state)
+    isBackgrounded,
+    lastEventAt: orderedEvents.at(-1)?.timestamp ?? firstEvent.timestamp,
+    wait: waitState && !waitState.resolvedAt ? waitState : undefined
   };
-}
 
-export function getTaskSnapshot(events: TaskEvent[]): TaskSnapshot {
-  return reduceTaskEvents(events);
+  return {
+    runId: firstEvent.runId,
+    header,
+    stageRail: {
+      steps: [...steps.values()].sort((left, right) => left.order - right.order),
+      activeStepId
+    },
+    timeline,
+    evidence: {
+      entries: evidenceEntries.sort((left, right) => right.timestamp.localeCompare(left.timestamp)),
+      tools: [...toolCalls.values()].sort((left, right) => right.startedAt.localeCompare(left.startedAt)),
+      resources: [...resources.values()].sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    },
+    artifacts: [...artifacts.values()].sort((left, right) => right.timestamp.localeCompare(left.timestamp)),
+    approvals: [...approvals.values()].sort((left, right) => right.requestedAt.localeCompare(left.requestedAt))
+  };
 }

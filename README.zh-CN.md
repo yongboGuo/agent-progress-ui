@@ -1,6 +1,6 @@
 # agent-progress-ui
 
-面向长任务 AI 和 agent 产品的开源 React UI 系统。
+面向长运行 agent、MCP transcript、审批流和 artifact 的开源 React runtime UI kit。
 
 [![CI](https://github.com/yongboGuo/agent-progress-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/yongboGuo/agent-progress-ui/actions/workflows/ci.yml)
 [![在线 Demo](https://img.shields.io/badge/demo-live-C4FF4D)](https://yongboGuo.github.io/agent-progress-ui/)
@@ -8,17 +8,29 @@
 
 ![封面](./assets/cover.png)
 
-`agent-progress-ui` 的目标是把“模糊的 loading”升级成“可观察、可中断、可审阅的任务工作台”。仓库同时提供固定状态机、事件 reducer、可复用 React 组件，以及一个带首页、playground 和示例场景的 Next.js demo 站。
+`agent-progress-ui` 不再只是一个任务进度 demo。  
+它现在定位为一个 **MCP-first 的 agent runtime UI kit**，适合 code agent、research agent 和带人工审批节点的长运行工作流。
 
 在线 Demo: [yongboGuo.github.io/agent-progress-ui](https://yongboGuo.github.io/agent-progress-ui/)
 
-## v0.1 包含内容
+## v0.2 包含内容
 
-- 一套稳定的长任务状态机
-- 从事件流归并到 `TaskSnapshot` 的 reducer
-- 可复用 React 组件：`TaskWorkbench`、`StageRail`、`EvidenceFeed`、`LivenessPulse`、`TaskStateBadge`、`TaskTimer`
-- 三套内置场景：chat、research、agent
-- 一个完整 demo 站：`/`、`/playground`、`/examples/*`
+- 一套标准化的 `AgentRunEvent` / `AgentRunSnapshot` 模型
+- 一个支持增量更新的 reducer 和 live store
+- 一套可组合的 React 运行时工作台组件：
+  `AgentWorkbench`、`AgentHeader`、`AgentStageRail`、`AgentTimeline`、`AgentEvidencePanel`、`AgentArtifactDock`、`AgentApprovalBar`、`AgentInspector`
+- 一个薄适配层 `@agent-progress-ui/mcp`，用于把 transcript / session 信号映射到 runtime 模型
+- 一个 reference app，直接展示 transcript slice、live store replay 和 MCP adapter demo
+
+## 为什么仓库定位变了
+
+这个仓库现在解决的是以下三者之间的空白：
+
+- 只有 spinner、没有运行时上下文的 loading UI
+- 只有消息列表、但 tool state 被藏起来的 chat shell
+- 真正面向 operator 的 runtime workbench
+
+新的核心原则很简单：**run 本身应该成为产品表面，而不是被藏在 loading 后面。**
 
 ## 快速开始
 
@@ -29,23 +41,48 @@ npm run dev
 
 然后访问 `http://localhost:3000`。
 
+## 最小示例
+
+```ts
+import { scenarioCatalog, getAgentRunSnapshot } from "@agent-progress-ui/core";
+import { AgentWorkbench } from "@agent-progress-ui/react";
+
+const snapshot = getAgentRunSnapshot(scenarioCatalog["code-agent"].events);
+```
+
+## MCP adapter 示例
+
+```ts
+import { createMcpRunAdapter, createMockMcpTranscript } from "@agent-progress-ui/mcp";
+
+const adapter = createMcpRunAdapter({
+  initialEnvelopes: createMockMcpTranscript("code-agent")
+});
+
+const snapshot = adapter.getSnapshot();
+```
+
 ## 仓库结构
 
 ```text
-apps/web        Next.js 官网和交互 demo
-packages/core   状态机、事件模型、reducer、场景数据
-packages/react  可复用 React UI 组件
+apps/web        文档 + 交互式 reference app
+packages/core   AgentRun 模型、reducer、store、mock 场景
+packages/react  可组合 runtime workbench 组件
+packages/mcp    薄 MCP transcript/session adapter
 ```
 
-## 文档
+## 迁移说明
 
-- [设计原则](./docs/principles.md)
-- [状态机](./docs/state-machine.md)
-- [事件协议](./docs/event-schema.md)
-- [场景说明](./docs/scenarios.md)
-- [中文原始研究文档](./docs/zh/AI%20%E9%95%BF%E4%BB%BB%E5%8A%A1%E5%8A%A0%E8%BD%BD%E5%8A%A8%E7%94%BB%E6%96%B9%E6%A1%88.md)
+`v0.2` 是破坏性升级。
 
-## 开发检查
+- `TaskEvent` -> `AgentRunEvent`
+- `TaskSnapshot` -> `AgentRunSnapshot`
+- `TaskWorkbench` -> `AgentWorkbench`
+- 旧任务事件可通过 `legacyTaskEventsToAgentRunEvents` 转换
+
+详细迁移说明见 [MIGRATION.md](./MIGRATION.md)。
+
+## 开发
 
 ```bash
 npm run lint
@@ -54,12 +91,9 @@ npm run test
 npm run build
 ```
 
-仓库内已经包含 CI 校验流程和 GitHub Pages demo 发布流程。
+版本与发布准备：
 
-## 预览资源
-
-![首页截图](./assets/screenshots/home.png)
-![Playground 截图](./assets/screenshots/playground.png)
-![Agent 示例截图](./assets/screenshots/example-agent.png)
-
-![Demo 动图](./assets/demo.gif)
+```bash
+npm run changeset
+npm run version-packages
+```

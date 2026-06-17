@@ -1,57 +1,63 @@
 import { describe, expect, it } from "vitest";
 
-import { getTaskSnapshot, reduceTaskEvents, scenarioCatalog } from "../src";
+import { createAgentRunStore, getAgentRunSnapshot, reduceAgentRunEvents, scenarioCatalog } from "../src";
 
-describe("reduceTaskEvents", () => {
-  it("returns a completed chat snapshot", () => {
-    const snapshot = reduceTaskEvents(scenarioCatalog.chat.events);
+describe("reduceAgentRunEvents", () => {
+  it("returns a completed research snapshot with artifacts and evidence", () => {
+    const snapshot = reduceAgentRunEvents(scenarioCatalog["research-agent"].events);
 
-    expect(snapshot.state).toBe("completed");
-    expect(snapshot.steps).toHaveLength(3);
-    expect(snapshot.steps.at(-1)?.status).toBe("pending");
-    expect(snapshot.canCancel).toBe(false);
-    expect(snapshot.artifacts).toHaveLength(1);
+    expect(snapshot.header.status).toBe("completed");
+    expect(snapshot.stageRail.steps).toHaveLength(4);
+    expect(snapshot.artifacts.map((artifact) => artifact.type)).toEqual(["bundle", "memo"]);
+    expect(snapshot.evidence.resources[0]?.kind).toBe("source");
   });
 
-  it("keeps research flows reviewable and backgroundable where appropriate", () => {
-    const researchEvents = scenarioCatalog.research.events.slice(0, 12);
-    const snapshot = getTaskSnapshot(researchEvents);
+  it("aggregates tool outputs and preserves background execution state", () => {
+    const snapshot = getAgentRunSnapshot(scenarioCatalog["code-agent"].events.slice(0, 16));
 
-    expect(snapshot.state).toBe("synthesizing");
-    expect(snapshot.canBackground).toBe(true);
-    expect(snapshot.canReview).toBe(false);
-    expect(snapshot.artifacts[0]?.type).toBe("outline");
+    expect(snapshot.header.status).toBe("backgrounded");
+    expect(snapshot.evidence.tools).toHaveLength(3);
+    expect(snapshot.evidence.tools.find((tool) => tool.id === "tool-test")?.outputs[0]?.summary).toMatch(/All targeted tests passed/i);
   });
 
-  it("exposes review mode and preserves artifacts on agent flows", () => {
-    const snapshot = getTaskSnapshot(scenarioCatalog.agent.events);
+  it("surfaces approvals as a first-class run section", () => {
+    const snapshot = getAgentRunSnapshot(scenarioCatalog["approval-handoff"].events.slice(0, 6));
 
-    expect(snapshot.state).toBe("ready_for_review");
-    expect(snapshot.canReview).toBe(true);
-    expect(snapshot.artifacts.map((artifact) => artifact.type)).toEqual(["diff", "bundle"]);
-    expect(snapshot.steps.find((step) => step.id === "agent-verify")?.status).toBe("completed");
+    expect(snapshot.header.status).toBe("approval");
+    expect(snapshot.approvals[0]?.status).toBe("pending");
+    expect(snapshot.timeline.some((item) => item.kind === "approval")).toBe(true);
   });
 
-  it("marks failed steps when the failing event identifies a step", () => {
+  it("keeps failed runs reviewable and marks the active step as failed", () => {
     const failedFlow = [
-      ...scenarioCatalog.agent.events.slice(0, 10),
+      ...scenarioCatalog["code-agent"].events.slice(0, 13),
       {
-        id: "agent-failed",
-        taskId: "task_agent_01",
-        type: "failed" as const,
-        state: "failed" as const,
-        timestamp: "2026-04-29T09:02:10.000Z",
+        id: "code-failed",
+        runId: "run_code_01",
+        type: "run.failed" as const,
+        timestamp: "2026-06-14T09:00:28.000Z",
         title: "Verification failed",
         message: "A smoke test timed out.",
-        stepId: "agent-implement",
-        stepLabel: "Apply changes",
-        elapsedMs: 130_000
+        elapsedMs: 28_000,
+        error: "Smoke test timed out."
       }
     ];
 
-    const snapshot = reduceTaskEvents(failedFlow);
+    const snapshot = reduceAgentRunEvents(failedFlow);
 
-    expect(snapshot.state).toBe("failed");
-    expect(snapshot.steps.find((step) => step.id === "agent-implement")?.status).toBe("failed");
+    expect(snapshot.header.status).toBe("failed");
+    expect(snapshot.stageRail.steps.find((step) => step.id === "verify")?.status).toBe("failed");
+    expect(snapshot.artifacts.map((artifact) => artifact.type)).toContain("diff");
+  });
+
+  it("replays events through a live store", () => {
+    const events = scenarioCatalog["approval-handoff"].events;
+    const store = createAgentRunStore(events.slice(0, 2));
+
+    store.append(events[2]);
+    store.append(events.slice(3));
+
+    expect(store.getSnapshot().header.status).toBe("completed");
+    expect(store.getSnapshot().approvals[0]?.status).toBe("approved");
   });
 });
